@@ -9,8 +9,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.Data;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -19,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
         origins = "*",
         maxAge = 3600,
         allowedHeaders = "*",
-        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}
 )
 @Tag(name = "User Management", description = "APIs for managing users in the social network")
 public class UserController {
@@ -34,30 +39,36 @@ public class UserController {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved users"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @GetMapping
-    public ResponseEntity<User[]> getAllUsers() {
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE) // ĐẢM BẢO Content-Type
+    public ResponseEntity<List<User>> getAllUsers() {
+        try {
+            ResponseEntity<User[]> response = supabaseService.getAllActiveUsers(User[].class);
 
-        ResponseEntity<User[]> response =
-                supabaseService.getAllActiveUsers(User[].class);
+            System.out.println("========== GET ALL USERS ==========");
+            System.out.println("Status: " + response.getStatusCode());
 
-        System.out.println("========== GET ALL USERS ==========");
-        System.out.println("Status: " + response.getStatusCode());
+            User[] users = response.getBody();
 
-        User[] users = response.getBody();
-
-        if (users != null) {
-            System.out.println("Total Users: " + users.length);
-            System.out.println("Data:");
-            for (User u : users) {
-                System.out.println(" - " + u);
+            if (users != null) {
+                System.out.println("Total Users: " + users.length);
+                // Chuyển Array -> List để đảm bảo JSON serialization
+                List<User> userList = Arrays.asList(users);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON) // Explicit content type
+                        .body(userList);
+            } else {
+                System.out.println("Body = NULL");
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Arrays.asList()); // Trả về empty list thay vì null
             }
-        } else {
-            System.out.println("Body = NULL");
+        } catch (Exception e) {
+            System.err.println("ERROR in getAllUsers: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
         }
-
-        System.out.println("===================================");
-
-        return response;
     }
 
 
@@ -70,12 +81,29 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @GetMapping("/{id}")
-    public ResponseEntity<User[]> getUserById(
+    @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> getUserById(
             @Parameter(description = "User ID", example = "1", required = true)
             @PathVariable Long id
     ) {
-        return supabaseService.getUserById(id, User[].class);
+        try {
+            ResponseEntity<User[]> response = supabaseService.getUserById(id, User[].class);
+            User[] users = response.getBody();
+
+            if (users != null && users.length > 0) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Arrays.asList(users));
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Arrays.asList());
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -86,12 +114,22 @@ public class UserController {
             @ApiResponse(responseCode = "200", description = "Search completed successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @GetMapping("/search")
-    public ResponseEntity<User[]> searchByUsername(
+    @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> searchByUsername(
             @Parameter(description = "Username to search for", example = "john", required = true)
             @RequestParam String username
     ) {
-        return supabaseService.searchUserByUsername(username, User[].class);
+        try {
+            ResponseEntity<User[]> response = supabaseService.searchUserByUsername(username, User[].class);
+            User[] users = response.getBody();
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -102,9 +140,19 @@ public class UserController {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved deleted users"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @GetMapping("/deleted")
-    public ResponseEntity<User[]> getDeletedUsers() {
-        return supabaseService.getDeletedUsers(User[].class);
+    @GetMapping(value = "/deleted", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> getDeletedUsers() {
+        try {
+            ResponseEntity<User[]> response = supabaseService.getDeletedUsers(User[].class);
+            User[] users = response.getBody();
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -116,18 +164,30 @@ public class UserController {
             @ApiResponse(responseCode = "400", description = "Invalid input data"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @PostMapping
-    public ResponseEntity<User[]> createUser(
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> createUser(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "User object to be created",
                     required = true
             )
             @RequestBody User user
     ) {
-        user.setStatus(1);
-        user.setCreateDate(java.time.OffsetDateTime.now());
-        user.setUpdateDate(java.time.OffsetDateTime.now());
-        return supabaseService.createUser(user, User[].class);
+        try {
+            user.setStatus(1);
+            user.setCreateDate(java.time.OffsetDateTime.now());
+            user.setUpdateDate(java.time.OffsetDateTime.now());
+
+            ResponseEntity<User[]> response = supabaseService.createUser(user, User[].class);
+            User[] users = response.getBody();
+
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -139,19 +199,37 @@ public class UserController {
             @ApiResponse(responseCode = "401", description = "Invalid credentials"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @PostMapping("/login")
-    public ResponseEntity<User[]> login(
+    @PostMapping(value = "/login", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> login(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Login credentials",
                     required = true
             )
             @RequestBody LoginRequest loginRequest
     ) {
-        return supabaseService.loginUser(
-                loginRequest.getUsername_login(),
-                loginRequest.getPassword_login(),
-                User[].class
-        );
+        try {
+            ResponseEntity<User[]> response = supabaseService.loginUser(
+                    loginRequest.getUsername_login(),
+                    loginRequest.getPassword_login(),
+                    User[].class
+            );
+
+            User[] users = response.getBody();
+
+            if (users != null && users.length > 0) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Arrays.asList(users));
+            } else {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Arrays.asList());
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -164,8 +242,8 @@ public class UserController {
             @ApiResponse(responseCode = "400", description = "Invalid input data"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @PutMapping("/{id}")
-    public ResponseEntity<User[]> updateUser(
+    @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> updateUser(
             @Parameter(description = "User ID", example = "1", required = true)
             @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
@@ -174,8 +252,19 @@ public class UserController {
             )
             @RequestBody User user
     ) {
-        user.setUpdateDate(java.time.OffsetDateTime.now());
-        return supabaseService.updateUserById(id, user, User[].class);
+        try {
+            user.setUpdateDate(java.time.OffsetDateTime.now());
+            ResponseEntity<User[]> response = supabaseService.updateUserById(id, user, User[].class);
+            User[] users = response.getBody();
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -187,12 +276,23 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @DeleteMapping("/{id}")
-    public ResponseEntity<User[]> deleteUser(
+    @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> deleteUser(
             @Parameter(description = "User ID to delete", example = "1", required = true)
             @PathVariable Long id
     ) {
-        return supabaseService.softDeleteUser(id, User[].class);
+        try {
+            ResponseEntity<User[]> response = supabaseService.softDeleteUser(id, User[].class);
+            User[] users = response.getBody();
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     @Operation(
@@ -204,12 +304,23 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @PutMapping("/{id}/restore")
-    public ResponseEntity<User[]> restoreUser(
+    @PutMapping(value = "/{id}/restore", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> restoreUser(
             @Parameter(description = "User ID to restore", example = "1", required = true)
             @PathVariable Long id
     ) {
-        return supabaseService.restoreUser(id, User[].class);
+        try {
+            ResponseEntity<User[]> response = supabaseService.restoreUser(id, User[].class);
+            User[] users = response.getBody();
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Arrays.asList());
+        }
     }
 
     /**
