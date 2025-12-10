@@ -100,18 +100,18 @@ public class SupabaseUserService {
         Map<String, String> params = new HashMap<>();
         params.put("select", "*");
 
-//        System.out.println("========== GET ALL USERS (NO FILTER) ==========");
+        System.out.println("========== GET ALL USERS (NO FILTER) ==========");
         ResponseEntity<T> response = get("user", params, responseType);
-//        System.out.println("Response status: " + response.getStatusCode());
+        System.out.println("Response status: " + response.getStatusCode());
 
         // Convert array to readable string
-//        if (response.getBody() != null && response.getBody().getClass().isArray()) {
-//            System.out.println("Response body: " + Arrays.toString((Object[]) response.getBody()));
-//        } else {
-//            System.out.println("Response body: " + response.getBody());
-//        }
+        if (response.getBody() != null && response.getBody().getClass().isArray()) {
+            System.out.println("Response body: " + Arrays.toString((Object[]) response.getBody()));
+        } else {
+            System.out.println("Response body: " + response.getBody());
+        }
 
-//        System.out.println("===============================================");
+        System.out.println("===============================================");
         return response;
     }
 
@@ -123,29 +123,29 @@ public class SupabaseUserService {
 //        params.put("status", "eq.1");
         params.put("select", "*");
 
-//        System.out.println("========== GET ALL ACTIVE USERS ==========");
-//        System.out.println("Domain config exists: " + (config.getDomains().get("user") != null));
+        System.out.println("========== GET ALL ACTIVE USERS ==========");
+        System.out.println("Domain config exists: " + (config.getDomains().get("user") != null));
 
         if (config.getDomains().get("user") != null) {
             var d = config.getDomains().get("user");
-//            System.out.println("URL: " + d.getUrl());
-//            System.out.println("Table: " + d.getTable());
-//            System.out.println("Key exists: " + (d.getKey() != null));
+            System.out.println("URL: " + d.getUrl());
+            System.out.println("Table: " + d.getTable());
+            System.out.println("Key exists: " + (d.getKey() != null));
         }
 
         ResponseEntity<T> response = get("user", params, responseType);
-//        System.out.println("Response status: " + response.getStatusCode());
+        System.out.println("Response status: " + response.getStatusCode());
 
         // Convert array to readable string
         if (response.getBody() != null && response.getBody().getClass().isArray()) {
             Object[] array = (Object[]) response.getBody();
-//            System.out.println("Number of users: " + array.length);
-//            System.out.println("Response body: " + Arrays.toString(array));
+            System.out.println("Number of users: " + array.length);
+            System.out.println("Response body: " + Arrays.toString(array));
         } else {
-//            System.out.println("Response body: " + response.getBody());
+            System.out.println("Response body: " + response.getBody());
         }
 
-//        System.out.println("==========================================");
+        System.out.println("==========================================");
         return response;
     }
 

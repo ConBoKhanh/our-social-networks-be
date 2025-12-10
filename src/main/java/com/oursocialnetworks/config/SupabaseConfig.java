@@ -27,18 +27,18 @@ public class SupabaseConfig {
         domains.put("user", user);
     }
 
-//    @PostConstruct
-//    public void init() {
-//        System.out.println("========== SUPABASE CONFIG ==========");
-//        System.out.println("Domains size: " + domains.size());
-//        if (domains.containsKey("user")) {
-//            DomainConfig user = domains.get("user");
-//            System.out.println("User URL: " + user.getUrl());
-//            System.out.println("User Table: " + user.getTable());
-//            System.out.println("User Key exists: " + (user.getKey() != null));
-//        } else {
-//            System.out.println("ERROR: 'user' domain not found!");
-//        }
-//        System.out.println("====================================");
-//    }
+    @PostConstruct
+    public void init() {
+        System.out.println("========== SUPABASE CONFIG ==========");
+        System.out.println("Domains size: " + domains.size());
+        if (domains.containsKey("user")) {
+            DomainConfig user = domains.get("user");
+            System.out.println("User URL: " + user.getUrl());
+            System.out.println("User Table: " + user.getTable());
+            System.out.println("User Key exists: " + (user.getKey() != null));
+        } else {
+            System.out.println("ERROR: 'user' domain not found!");
+        }
+        System.out.println("====================================");
+    }
 }
