@@ -106,13 +106,15 @@ public class SupabaseUserService {
         params.put("order", "id.desc"); // Newest first
         params.put("limit", "100"); // Limit to prevent timeout
 
-        System.out.println("========== GET ALL ACTIVE USERS (OPTIMIZED) ==========");
+        System.out.println("========== GET ALL ACTIVE USERS (OPTIMIZED) SUPPERUSERSVERICE ==========");
         ResponseEntity<T> response = get("user", params, responseType);
         System.out.println("Response status: " + response.getStatusCode());
-
         if (response.getBody() != null && response.getBody().getClass().isArray()) {
             Object[] array = (Object[]) response.getBody();
             System.out.println("Number of users: " + array.length);
+            for (Object obj : array) {
+                System.out.println("User: " + obj);
+            }
         }
         System.out.println("====================================================");
 

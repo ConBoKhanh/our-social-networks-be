@@ -36,8 +36,30 @@ public class UserController {
     })
     @GetMapping
     public ResponseEntity<User[]> getAllUsers() {
-        return supabaseService.getAllActiveUsers(User[].class);
+
+        ResponseEntity<User[]> response =
+                supabaseService.getAllActiveUsers(User[].class);
+
+        System.out.println("========== GET ALL USERS ==========");
+        System.out.println("Status: " + response.getStatusCode());
+
+        User[] users = response.getBody();
+
+        if (users != null) {
+            System.out.println("Total Users: " + users.length);
+            System.out.println("Data:");
+            for (User u : users) {
+                System.out.println(" - " + u);
+            }
+        } else {
+            System.out.println("Body = NULL");
+        }
+
+        System.out.println("===================================");
+
+        return response;
     }
+
 
     @Operation(
             summary = "Get user by ID",
