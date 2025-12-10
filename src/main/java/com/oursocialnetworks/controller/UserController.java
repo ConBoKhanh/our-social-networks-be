@@ -15,7 +15,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(
+        origins = "*",
+        maxAge = 3600,
+        allowedHeaders = "*",
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
+)
 @Tag(name = "User Management", description = "APIs for managing users in the social network")
 public class UserController {
 
@@ -23,7 +28,7 @@ public class UserController {
 
     @Operation(
             summary = "Get all active users",
-            description = "Retrieve all users with status = 1 (active users only)"
+            description = "Retrieve all users with status = 1 (active users only). Limited to 100 users for performance."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved users"),
@@ -53,7 +58,7 @@ public class UserController {
 
     @Operation(
             summary = "Search users by username",
-            description = "Search for users whose username contains the specified text (case-insensitive)"
+            description = "Search for users whose username contains the specified text (case-insensitive). Limited to 50 results."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Search completed successfully"),
@@ -69,7 +74,7 @@ public class UserController {
 
     @Operation(
             summary = "Get deleted users",
-            description = "Retrieve all users with status = 0 (soft deleted users)"
+            description = "Retrieve all users with status = 0 (soft deleted users). Limited to 50 results."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved deleted users"),
@@ -98,6 +103,7 @@ public class UserController {
             @RequestBody User user
     ) {
         user.setStatus(1);
+        user.setCreateDate(java.time.OffsetDateTime.now());
         user.setUpdateDate(java.time.OffsetDateTime.now());
         return supabaseService.createUser(user, User[].class);
     }
@@ -191,14 +197,14 @@ public class UserController {
     public static class LoginRequest {
         @io.swagger.v3.oas.annotations.media.Schema(
                 description = "Username for login",
-                example = "user123",
+                example = "conbokhanh",
                 required = true
         )
         private String username_login;
 
         @io.swagger.v3.oas.annotations.media.Schema(
                 description = "Password for login",
-                example = "password123",
+                example = "Duytunbua2003",
                 required = true
         )
         private String password_login;

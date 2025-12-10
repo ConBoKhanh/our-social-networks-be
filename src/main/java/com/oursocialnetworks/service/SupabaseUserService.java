@@ -23,6 +23,7 @@ public class SupabaseUserService {
         headers.set("apikey", apiKey);
         headers.set("Authorization", "Bearer " + apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Prefer", "return=representation"); // Always return data
         return headers;
     }
 
@@ -59,6 +60,7 @@ public class SupabaseUserService {
     public <T, R> ResponseEntity<R> post(String domain, T body, Class<R> responseType) {
         var d = config.getDomains().get(domain);
         var headers = buildHeaders(d.getKey());
+        headers.set("Prefer", "return=representation"); // Return created object
         var url = d.getUrl() + "/rest/v1/" + d.getTable();
 
         HttpEntity<T> entity = new HttpEntity<>(body, headers);
@@ -71,6 +73,7 @@ public class SupabaseUserService {
     public <T, R> ResponseEntity<R> put(String domain, Map<String, String> params, T body, Class<R> responseType) {
         var d = config.getDomains().get(domain);
         var headers = buildHeaders(d.getKey());
+        headers.set("Prefer", "return=representation"); // Return updated object
         var url = buildUrl(d.getUrl(), d.getTable(), params);
 
         HttpEntity<T> entity = new HttpEntity<>(body, headers);
@@ -90,96 +93,64 @@ public class SupabaseUserService {
     }
 
     // =========================
-    // USER SPECIFIC METHODS
+    // USER SPECIFIC METHODS - OPTIMIZED
     // =========================
 
     /**
-     * Lấy TẤT CẢ users KHÔNG filter (để test)
-     */
-    public <T> ResponseEntity<T> getAllUsersNoFilter(Class<T> responseType) {
-        Map<String, String> params = new HashMap<>();
-        params.put("select", "*");
-
-        System.out.println("========== GET ALL USERS (NO FILTER) ==========");
-        ResponseEntity<T> response = get("user", params, responseType);
-        System.out.println("Response status: " + response.getStatusCode());
-
-        // Convert array to readable string
-        if (response.getBody() != null && response.getBody().getClass().isArray()) {
-            System.out.println("Response body: " + Arrays.toString((Object[]) response.getBody()));
-        } else {
-            System.out.println("Response body: " + response.getBody());
-        }
-
-        System.out.println("===============================================");
-        return response;
-    }
-
-    /**
-     * Lấy tất cả users với status = 1 (active)
+     * Get all active users with pagination
      */
     public <T> ResponseEntity<T> getAllActiveUsers(Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
-//        params.put("status", "eq.1");
         params.put("select", "*");
+        params.put("status", "eq.1");
+        params.put("order", "id.desc"); // Newest first
+        params.put("limit", "100"); // Limit to prevent timeout
 
-        System.out.println("========== GET ALL ACTIVE USERS ==========");
-        System.out.println("Domain config exists: " + (config.getDomains().get("user") != null));
-
-        if (config.getDomains().get("user") != null) {
-            var d = config.getDomains().get("user");
-            System.out.println("URL: " + d.getUrl());
-            System.out.println("Table: " + d.getTable());
-            System.out.println("Key exists: " + (d.getKey() != null));
-        }
-
+        System.out.println("========== GET ALL ACTIVE USERS (OPTIMIZED) ==========");
         ResponseEntity<T> response = get("user", params, responseType);
         System.out.println("Response status: " + response.getStatusCode());
 
-        // Convert array to readable string
         if (response.getBody() != null && response.getBody().getClass().isArray()) {
             Object[] array = (Object[]) response.getBody();
             System.out.println("Number of users: " + array.length);
-            System.out.println("Response body: " + Arrays.toString(array));
-        } else {
-            System.out.println("Response body: " + response.getBody());
         }
+        System.out.println("====================================================");
 
-        System.out.println("==========================================");
         return response;
     }
 
     /**
-     * Lấy user theo ID với status = 1
+     * Get user by ID with status = 1
      */
     public <T> ResponseEntity<T> getUserById(Long id, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("id", "eq." + id);
-//        params.put("status", "eq.1");
+        params.put("status", "eq.1");
         params.put("select", "*");
         return get("user", params, responseType);
     }
 
     /**
-     * Tìm kiếm user theo username
+     * Search user by username
      */
     public <T> ResponseEntity<T> searchUserByUsername(String username, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("username", "ilike.*" + username + "*");
-//        params.put("status", "eq.1");
+        params.put("status", "eq.1");
         params.put("select", "*");
+        params.put("limit", "50"); // Limit search results
         return get("user", params, responseType);
     }
 
     /**
-     * Tạo user mới
+     * Create new user
      */
     public <T, R> ResponseEntity<R> createUser(T user, Class<R> responseType) {
         return post("user", user, responseType);
     }
 
     /**
-     * Cập nhật user theo ID
+     * Update user by ID
      */
     public <T, R> ResponseEntity<R> updateUserById(Long id, T user, Class<R> responseType) {
         Map<String, String> params = new HashMap<>();
@@ -188,7 +159,7 @@ public class SupabaseUserService {
     }
 
     /**
-     * Xóa mềm - Cập nhật status = 0 (soft delete)
+     * Soft delete - Update status = 0
      */
     public <T> ResponseEntity<T> softDeleteUser(Long id, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
@@ -196,13 +167,13 @@ public class SupabaseUserService {
 
         Map<String, Object> updateData = new HashMap<>();
         updateData.put("status", 0);
-        updateData.put("updateDate", java.time.LocalDate.now().toString());
+        updateData.put("updateDate", java.time.OffsetDateTime.now().toString());
 
         return put("user", params, updateData, responseType);
     }
 
     /**
-     * Khôi phục user (set status = 1)
+     * Restore user (set status = 1)
      */
     public <T> ResponseEntity<T> restoreUser(Long id, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
@@ -210,23 +181,25 @@ public class SupabaseUserService {
 
         Map<String, Object> updateData = new HashMap<>();
         updateData.put("status", 1);
-        updateData.put("updateDate", java.time.LocalDate.now().toString());
+        updateData.put("updateDate", java.time.OffsetDateTime.now().toString());
 
         return put("user", params, updateData, responseType);
     }
 
     /**
-     * Lấy tất cả users đã xóa (status = 0)
+     * Get all deleted users (status = 0)
      */
     public <T> ResponseEntity<T> getDeletedUsers(Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("status", "eq.0");
         params.put("select", "*");
+        params.put("order", "updateDate.desc");
+        params.put("limit", "50");
         return get("user", params, responseType);
     }
 
     /**
-     * Kiểm tra login
+     * Login check
      */
     public <T> ResponseEntity<T> loginUser(String username, String password, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
@@ -234,6 +207,7 @@ public class SupabaseUserService {
         params.put("password_login", "eq." + password);
         params.put("status", "eq.1");
         params.put("select", "*");
+        params.put("limit", "1"); // Only need 1 user
         return get("user", params, responseType);
     }
 }
