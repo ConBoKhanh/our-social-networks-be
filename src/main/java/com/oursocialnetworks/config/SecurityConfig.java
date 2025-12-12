@@ -2,6 +2,8 @@ package com.oursocialnetworks.config;
 
 import com.oursocialnetworks.component.JwtAuthFilter;
 import com.oursocialnetworks.component.OAuth2SuccessHandler;
+import com.oursocialnetworks.component.CustomAuthenticationEntryPoint;
+import com.oursocialnetworks.component.CustomAccessDeniedHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +21,8 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final ClientRegistrationRepository clientRegistrationRepository;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -57,7 +61,10 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/health",
                                 "/api/ping",
-                                "/api/info"
+                                "/api/info",
+                                "/api/debug/public-test",
+                                "/api/debug/test-patch/**",
+                                "/api/users/test-delete/**"
                         ).permitAll()
 
                         // ⚠️ Protected Auth Endpoints - Require JWT
@@ -67,6 +74,17 @@ public class SecurityConfig {
                                 "/auth/logout"
                         ).authenticated()
 
+                        // ✅ Test role endpoints
+                        .requestMatchers("/api/test-role/info").authenticated()
+                        .requestMatchers("/api/test-role/user-only").hasRole("USER")
+                        .requestMatchers("/api/test-role/admin-only").hasRole("ADMIN")
+                        
+                        // ✅ Client API - Authenticated user (tạm thời không cần role)
+                        .requestMatchers("/api/client/**").authenticated()
+                        
+                        // ⚠️ Admin API - Admin role  
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+                        
                         // ⚠️ TẤT CẢ API KHÁC - Cần JWT
                         .requestMatchers("/api/**").authenticated()
 
@@ -74,7 +92,13 @@ public class SecurityConfig {
                 )
 
                 // ✅ Thêm JWT filter
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // ✅ Custom Exception Handlers - Trả JSON thay vì HTML
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)  // 401 Unauthorized
+                        .accessDeniedHandler(customAccessDeniedHandler)            // 403 Forbidden
+                );
 
         // ✅ Chỉ cấu hình OAuth2 nếu có đăng ký client
         if (clientRegistrationRepository != null) {

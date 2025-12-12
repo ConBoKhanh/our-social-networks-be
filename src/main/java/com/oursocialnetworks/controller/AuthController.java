@@ -9,9 +9,12 @@ import lombok.Data;
 
 import com.oursocialnetworks.dto.TokenRequest;
 import com.oursocialnetworks.dto.RefreshTokenRequest;
+import com.oursocialnetworks.dto.AuthResponse;
+import com.oursocialnetworks.dto.ChangePasswordRequest;
 import com.oursocialnetworks.entity.User;
 import com.oursocialnetworks.service.JwtService;
 import com.oursocialnetworks.service.SupabaseUserService;
+import com.oursocialnetworks.service.EmailService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/auth")
@@ -45,6 +49,9 @@ public class AuthController {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private EmailService emailService;
+
     @Data
     private static class BasicLoginRequest {
         @JsonProperty("username_login")
@@ -61,29 +68,42 @@ public class AuthController {
             description = "Authenticate user with Google OAuth2 ID token and receive JWT tokens"
     )
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody TokenRequest request) {
+    public ResponseEntity<AuthResponse> login(@RequestBody TokenRequest request) {
         try {
             // 1. Verify token Google
             GoogleIdToken.Payload payload = verifyGoogleToken(request.getIdToken());
-
             String email = payload.getEmail();
 
             // 2. Tìm hoặc tạo User trong Supabase
-            User user = userService.findOrCreateUser(email);
+            SupabaseUserService.UserCreationResult result = userService.findOrCreateUser(email);
+            User user = result.getUser();
+            boolean isNewUser = result.isNewUser();
+            String tempPassword = result.getTempPassword();
 
-            // 3. Tạo access & refresh token
+            // 3. Gửi email nếu là user mới
+            if (isNewUser && tempPassword != null) {
+                emailService.sendNewAccountEmail(email, user.getUsername(), tempPassword);
+            }
+
+            // 4. Tạo access & refresh token
             String accessToken = jwtService.generateToken(user);
             String refreshToken = jwtService.generateRefreshToken(user);
 
-            return ResponseEntity.ok(Map.of(
-                    "accessToken", accessToken,
-                    "refreshToken", refreshToken,
-                    "user", user
-            ));
+            // 5. Tạo response message
+            String message = isNewUser 
+                ? "Tài khoản mới đã được tạo. Vui lòng kiểm tra email để lấy mật khẩu tạm thời."
+                : "Đăng nhập thành công!";
+
+            AuthResponse response = AuthResponse.success(
+                message, accessToken, refreshToken, user, isNewUser, 
+                isNewUser ? tempPassword : null
+            );
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Invalid ID Token", "message", e.getMessage()));
+                    .body(AuthResponse.error("Đăng nhập thất bại: " + e.getMessage()));
         }
     }
 
@@ -133,7 +153,7 @@ public class AuthController {
             description = "Verify credentials on Supabase and return JWT tokens"
     )
     @PostMapping("/login/basic")
-    public ResponseEntity<?> loginWithCredentials(@RequestBody BasicLoginRequest req) {
+    public ResponseEntity<AuthResponse> loginWithCredentials(@RequestBody BasicLoginRequest req) {
         try {
             ResponseEntity<User[]> res = userService.loginUser(
                     req.getUsernameLogin(),
@@ -144,21 +164,25 @@ public class AuthController {
             User[] users = res.getBody();
             if (users == null || users.length == 0) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Invalid username or password"));
+                        .body(AuthResponse.error("Tên đăng nhập hoặc mật khẩu không đúng"));
             }
 
             User user = users[0];
             String accessToken = jwtService.generateToken(user);
             String refreshToken = jwtService.generateRefreshToken(user);
 
-            return ResponseEntity.ok(Map.of(
-                    "accessToken", accessToken,
-                    "refreshToken", refreshToken,
-                    "user", user
-            ));
+            String message = user.getStatus() == 2 
+                ? "Đăng nhập thành công! Vui lòng đổi mật khẩu để tiếp tục sử dụng."
+                : "Đăng nhập thành công!";
+
+            AuthResponse response = AuthResponse.success(
+                message, accessToken, refreshToken, user, false, null
+            );
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Login failed", "message", e.getMessage()));
+                    .body(AuthResponse.error("Đăng nhập thất bại: " + e.getMessage()));
         }
     }
 
@@ -202,6 +226,85 @@ public class AuthController {
                             "error", "Invalid refresh token",
                             "message", e.getMessage()
                     ));
+        }
+    }
+
+    // ============================
+    //  POST /auth/change-password - Change password for status = 2 users
+    // ============================
+    @Operation(
+            summary = "Change password",
+            description = "Change password for users with status = 2 (temporary password)",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PostMapping("/change-password")
+    public ResponseEntity<AuthResponse> changePassword(@RequestBody ChangePasswordRequest request) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(AuthResponse.error("Không có quyền truy cập"));
+            }
+
+            String userId = auth.getPrincipal().toString();
+
+            // Get current user
+            ResponseEntity<User[]> userResponse = userService.getUserById(userId, User[].class);
+            User[] users = userResponse.getBody();
+            
+            if (users == null || users.length == 0) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(AuthResponse.error("Không tìm thấy user"));
+            }
+
+            User user = users[0];
+
+            // Validate current password
+            if (!user.getPasswordLogin().equals(request.getCurrentPassword())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Mật khẩu hiện tại không đúng"));
+            }
+
+            // Validate new password confirmation
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Xác nhận mật khẩu không khớp"));
+            }
+
+            // Update password and status - use direct field access
+            // user.setPasswordLogin(request.getNewPassword());
+            // user.setStatus(1); // Change status from 2 to 1 (active)
+            // user.setUpdateDate(java.time.LocalDate.now());
+
+            // Save to database - Create update payload manually
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put("password_login", request.getNewPassword());
+            updateData.put("status", 1);
+            updateData.put("updateDate", java.time.LocalDate.now().toString());
+            
+            Map<String, String> params = new HashMap<>();
+            params.put("id", "eq." + userId);
+            
+            userService.put("user", params, updateData, User[].class);
+            
+            // Update local user object for token generation
+            user.setPasswordLogin(request.getNewPassword());
+            user.setStatus(1);
+
+            // Generate new tokens
+            String accessToken = jwtService.generateToken(user);
+            String refreshToken = jwtService.generateRefreshToken(user);
+
+            AuthResponse response = AuthResponse.success(
+                "Đổi mật khẩu thành công! Tài khoản đã được kích hoạt.",
+                accessToken, refreshToken, user, false, null
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(AuthResponse.error("Đổi mật khẩu thất bại: " + e.getMessage()));
         }
     }
 

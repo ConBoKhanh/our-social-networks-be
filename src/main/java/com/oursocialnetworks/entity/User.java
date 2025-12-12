@@ -20,7 +20,7 @@ public class User {
     private UUID id; // Supabase dùng uuid
 
     @JsonProperty("createDate")
-    private OffsetDateTime createDate;
+    private LocalDate createDate;
 
     @JsonProperty("username_login")
     private String usernameLogin;
@@ -47,7 +47,7 @@ public class User {
     private Long idRelationship;
 
     @JsonProperty("updateDate")
-    private OffsetDateTime updateDate;
+    private LocalDate  updateDate;
 
     // Contact fields
     private String email;                  // email

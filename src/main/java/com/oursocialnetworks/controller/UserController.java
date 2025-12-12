@@ -2,14 +2,11 @@ package com.oursocialnetworks.controller;
 
 import com.oursocialnetworks.entity.User;
 import com.oursocialnetworks.service.SupabaseUserService;
+import com.oursocialnetworks.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,378 +19,331 @@ import java.util.List;
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 @Tag(name = "User Management", description = "APIs for managing users in the social network")
-@SecurityRequirement(name = "Bearer Authentication")  // ✅ THÊM: Yêu cầu JWT cho tất cả endpoints
+@SecurityRequirement(name = "Bearer Authentication")
 public class UserController {
 
     private final SupabaseUserService supabaseService;
 
     @Operation(
             summary = "Get all active users",
-            description = """
-                    Retrieve all users with status = 1 (active users only). Limited to 100 users for performance.
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
+            description = "Retrieve all users with status = 1 (active users only)",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved users"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> getAllUsers() {
+    public ResponseEntity<ApiResponse<List<User>>> getAllUsers() {
         try {
             ResponseEntity<User[]> response = supabaseService.getAllActiveUsers(User[].class);
-
-            System.out.println("========== GET ALL USERS ==========");
-            System.out.println("Status: " + response.getStatusCode());
-
             User[] users = response.getBody();
 
             if (users != null) {
-                System.out.println("Total Users: " + users.length);
                 List<User> userList = Arrays.asList(users);
+                ApiResponse<List<User>> apiResponse = ApiResponse.success(
+                    "Lấy danh sách người dùng thành công", userList);
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(userList);
+                        .body(apiResponse);
             } else {
-                System.out.println("Body = NULL");
+                ApiResponse<List<User>> apiResponse = ApiResponse.success(
+                    "Không có người dùng nào", Arrays.asList());
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Arrays.asList());
+                        .body(apiResponse);
             }
         } catch (Exception e) {
             System.err.println("ERROR in getAllUsers: " + e.getMessage());
             e.printStackTrace();
+            ApiResponse<List<User>> apiResponse = ApiResponse.error(
+                "Lỗi khi lấy danh sách người dùng: " + e.getMessage(), 500);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
+                    .body(apiResponse);
         }
     }
 
-
     @Operation(
-            summary = "Get user by ID",
-            description = """
-                    Retrieve a specific user by their ID (only if status = 1)
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
+            summary = "Create new user (Admin only)",
+            description = "Create a new user in the system - requires Admin role",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User found"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "404", description = "User not found"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<User> getUserById(
-            @Parameter(description = "User ID", example = "138f2c87-d94c-41a1-95d6-b1e9e05e9d4e", required = true)
-            @PathVariable String id
-    ) {
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<User>> createUser(@RequestBody User user) {
         try {
-            ResponseEntity<User[]> response = supabaseService.getUserById(id, User[].class);
-            User[] users = response.getBody();
-
-            if (users != null && users.length > 0) {
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(users[0]);
-            } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(null);
+            // Set default values
+            if (user.getStatus() == null) {
+                user.setStatus(1);
+            }
+            if (user.getCreateDate() == null) {
+                user.setCreateDate(java.time.LocalDate.now());
+            }
+            if (user.getUpdateDate() == null) {
+                user.setUpdateDate(java.time.LocalDate.now());
             }
 
+            ResponseEntity<User[]> response = supabaseService.createUser(user, User[].class);
+            User[] createdUsers = response.getBody();
+
+            if (createdUsers != null && createdUsers.length > 0) {
+                User createdUser = createdUsers[0];
+                ApiResponse<User> apiResponse = ApiResponse.success(
+                    "Tạo người dùng thành công", createdUser);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            } else {
+                ApiResponse<User> apiResponse = ApiResponse.error(
+                    "Không thể tạo người dùng", 400);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            }
         } catch (Exception e) {
+            System.err.println("ERROR in createUser: " + e.getMessage());
             e.printStackTrace();
+            ApiResponse<User> apiResponse = ApiResponse.error(
+                "Lỗi khi tạo người dùng: " + e.getMessage(), 500);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(null);
+                    .body(apiResponse);
         }
     }
 
-
     @Operation(
-            summary = "Search users by username",
-            description = """
-                    Search for users whose username contains the specified text (case-insensitive). Limited to 50 results.
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
+            summary = "Update user (Admin only)",
+            description = "Update an existing user - requires Admin role",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Search completed successfully"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> searchByUsername(
-            @Parameter(description = "Username to search for", example = "john", required = true)
-            @RequestParam String username
-    ) {
+    @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<User>> updateUser(@PathVariable String id, @RequestBody User user) {
         try {
-            ResponseEntity<User[]> response = supabaseService.searchUserByUsername(username, User[].class);
-            User[] users = response.getBody();
+            // Set update date
+            user.setUpdateDate(java.time.LocalDate.now());
+
+            ResponseEntity<User[]> response = supabaseService.updateUserById(
+                java.util.UUID.fromString(id), user, User[].class);
+            User[] updatedUsers = response.getBody();
+
+            if (updatedUsers != null && updatedUsers.length > 0) {
+                User updatedUser = updatedUsers[0];
+                ApiResponse<User> apiResponse = ApiResponse.success(
+                    "Cập nhật người dùng thành công", updatedUser);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            } else {
+                ApiResponse<User> apiResponse = ApiResponse.error(
+                    "Không thể cập nhật người dùng", 400);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR in updateUser: " + e.getMessage());
+            e.printStackTrace();
+            ApiResponse<User> apiResponse = ApiResponse.error(
+                "Lỗi khi cập nhật người dùng: " + e.getMessage(), 500);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(apiResponse);
+        }
+    }
+
+    @Operation(
+            summary = "Soft delete user (Admin only)",
+            description = "Set user status to 0 (inactive) - requires Admin role",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<User>> deleteUser(@PathVariable String id) {
+        System.out.println("========== DELETE USER DEBUG START ==========");
+        System.out.println("Deleting user with ID: " + id);
+        
+        try {
+            System.out.println("Parsing UUID...");
+            java.util.UUID userId = java.util.UUID.fromString(id);
+            System.out.println("UUID parsed successfully: " + userId);
+            
+            System.out.println("Calling softDeleteUser...");
+            ResponseEntity<User[]> response = supabaseService.softDeleteUser(userId, User[].class);
+            System.out.println("Service call completed. Response status: " + response.getStatusCode());
+            
+            User[] deletedUsers = response.getBody();
+            System.out.println("Response body length: " + (deletedUsers != null ? deletedUsers.length : "null"));
+
+            if (deletedUsers != null && deletedUsers.length > 0) {
+                User deletedUser = deletedUsers[0];
+                System.out.println("User deleted successfully: " + deletedUser.getId());
+                ApiResponse<User> apiResponse = ApiResponse.success(
+                    "Xóa người dùng thành công (status = 0)", deletedUser);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            } else {
+                System.out.println("No user found with ID: " + id);
+                ApiResponse<User> apiResponse = ApiResponse.error(
+                    "Không tìm thấy người dùng với ID: " + id, 404);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR in deleteUser: " + e.getMessage());
+            System.err.println("Error class: " + e.getClass().getSimpleName());
+            e.printStackTrace();
+            ApiResponse<User> apiResponse = ApiResponse.error(
+                "Lỗi khi xóa người dùng: " + e.getMessage(), 500);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(apiResponse);
+        }
+    }
+
+    @Operation(
+            summary = "Restore user (Admin only)",
+            description = "Set user status to 1 (active) - requires Admin role",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PatchMapping(value = "/{id}/restore", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<User>> restoreUser(@PathVariable String id) {
+        System.out.println("========== RESTORE USER DEBUG START ==========");
+        System.out.println("Restoring user with ID: " + id);
+        
+        try {
+            System.out.println("Parsing UUID...");
+            java.util.UUID userId = java.util.UUID.fromString(id);
+            System.out.println("UUID parsed successfully: " + userId);
+            
+            System.out.println("Calling restoreUser...");
+            ResponseEntity<User[]> response = supabaseService.restoreUser(userId, User[].class);
+            System.out.println("Service call completed. Response status: " + response.getStatusCode());
+            
+            User[] restoredUsers = response.getBody();
+            System.out.println("Response body length: " + (restoredUsers != null ? restoredUsers.length : "null"));
+
+            if (restoredUsers != null && restoredUsers.length > 0) {
+                User restoredUser = restoredUsers[0];
+                System.out.println("User restored successfully: " + restoredUser.getId());
+                ApiResponse<User> apiResponse = ApiResponse.success(
+                    "Khôi phục người dùng thành công (status = 1)", restoredUser);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            } else {
+                System.out.println("No user found with ID: " + id);
+                ApiResponse<User> apiResponse = ApiResponse.error(
+                    "Không tìm thấy người dùng với ID: " + id, 404);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(apiResponse);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR in restoreUser: " + e.getMessage());
+            System.err.println("Error class: " + e.getClass().getSimpleName());
+            e.printStackTrace();
+            ApiResponse<User> apiResponse = ApiResponse.error(
+                "Lỗi khi khôi phục người dùng: " + e.getMessage(), 500);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(apiResponse);
+        }
+    }
+
+    @Operation(
+            summary = "Test soft delete without auth",
+            description = "Test endpoint to debug soft delete functionality"
+    )
+    @GetMapping(value = "/test-delete/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<String>> testDelete(@PathVariable String id) {
+        try {
+            System.out.println("========== TEST DELETE DEBUG ==========");
+            System.out.println("Testing delete for user ID: " + id);
+            
+            java.util.UUID userId = java.util.UUID.fromString(id);
+            ResponseEntity<User[]> response = supabaseService.softDeleteUser(userId, User[].class);
+            
+            System.out.println("Test delete completed. Status: " + response.getStatusCode());
+            
+            ApiResponse<String> apiResponse = ApiResponse.success(
+                "Test delete completed. Status: " + response.getStatusCode(), 
+                "Response body length: " + (response.getBody() != null ? response.getBody().length : "null"));
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
+                    .body(apiResponse);
         } catch (Exception e) {
+            System.err.println("ERROR in testDelete: " + e.getMessage());
+            e.printStackTrace();
+            ApiResponse<String> apiResponse = ApiResponse.error(
+                "Test delete error: " + e.getMessage(), 500);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
+                    .body(apiResponse);
         }
     }
 
     @Operation(
-            summary = "Get deleted users",
-            description = """
-                    Retrieve all users with status = 0 (soft deleted users). Limited to 50 results.
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
+            summary = "Test restore without auth",
+            description = "Test endpoint to debug restore functionality"
+    )
+    @GetMapping(value = "/test-restore/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<String>> testRestore(@PathVariable String id) {
+        try {
+            System.out.println("========== TEST RESTORE DEBUG ==========");
+            System.out.println("Testing restore for user ID: " + id);
+            
+            java.util.UUID userId = java.util.UUID.fromString(id);
+            ResponseEntity<User[]> response = supabaseService.restoreUser(userId, User[].class);
+            
+            System.out.println("Test restore completed. Status: " + response.getStatusCode());
+            
+            ApiResponse<String> apiResponse = ApiResponse.success(
+                "Test restore completed. Status: " + response.getStatusCode(), 
+                "Response body length: " + (response.getBody() != null ? response.getBody().length : "null"));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(apiResponse);
+        } catch (Exception e) {
+            System.err.println("ERROR in testRestore: " + e.getMessage());
+            e.printStackTrace();
+            ApiResponse<String> apiResponse = ApiResponse.error(
+                "Test restore error: " + e.getMessage(), 500);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(apiResponse);
+        }
+    }
+
+    @Operation(
+            summary = "Get all deleted users (Admin only)",
+            description = "Retrieve all users with status = 0 (deleted users)",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved deleted users"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
     @GetMapping(value = "/deleted", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> getDeletedUsers() {
+    public ResponseEntity<ApiResponse<List<User>>> getDeletedUsers() {
         try {
             ResponseEntity<User[]> response = supabaseService.getDeletedUsers(User[].class);
             User[] users = response.getBody();
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
-        }
-    }
 
-    @Operation(
-            summary = "Create new user",
-            description = """
-                    Create a new user account. Status will be automatically set to 1 (active)
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "User created successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid input data"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> createUser(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "User object to be created",
-                    required = true
-            )
-            @RequestBody User user
-    ) {
-        try {
-            user.setStatus(1);
-            user.setCreateDate(java.time.OffsetDateTime.now());
-            user.setUpdateDate(java.time.OffsetDateTime.now());
-
-            ResponseEntity<User[]> response = supabaseService.createUser(user, User[].class);
-            User[] users = response.getBody();
-
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
-        }
-    }
-
-    @Operation(
-            summary = "User login",
-            description = """
-                    Authenticate user with username and password
-                    
-                    ⚠️ **DEPRECATED:** Use /auth/login with Google OAuth2 instead
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Login successful"),
-            @ApiResponse(responseCode = "401", description = "Invalid credentials or missing token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @PostMapping(value = "/login", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> login(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Login credentials",
-                    required = true
-            )
-            @RequestBody LoginRequest loginRequest
-    ) {
-        try {
-            ResponseEntity<User[]> response = supabaseService.loginUser(
-                    loginRequest.getUsername_login(),
-                    loginRequest.getPassword_login(),
-                    User[].class
-            );
-
-            User[] users = response.getBody();
-
-            if (users != null && users.length > 0) {
+            if (users != null) {
+                List<User> userList = Arrays.asList(users);
+                ApiResponse<List<User>> apiResponse = ApiResponse.success(
+                    "Lấy danh sách người dùng đã xóa thành công", userList);
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Arrays.asList(users));
+                        .body(apiResponse);
             } else {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                ApiResponse<List<User>> apiResponse = ApiResponse.success(
+                    "Không có người dùng nào bị xóa", Arrays.asList());
+                return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Arrays.asList());
+                        .body(apiResponse);
             }
         } catch (Exception e) {
+            System.err.println("ERROR in getDeletedUsers: " + e.getMessage());
+            e.printStackTrace();
+            ApiResponse<List<User>> apiResponse = ApiResponse.error(
+                "Lỗi khi lấy danh sách người dùng đã xóa: " + e.getMessage(), 500);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
+                    .body(apiResponse);
         }
-    }
-
-    @Operation(
-            summary = "Update user",
-            description = """
-                    Update user information by ID. UpdateDate will be automatically set to current date
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User updated successfully"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "404", description = "User not found"),
-            @ApiResponse(responseCode = "400", description = "Invalid input data"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> updateUser(
-            @Parameter(description = "User ID", example = "1", required = true)
-            @PathVariable Long id,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Updated user object",
-                    required = true
-            )
-            @RequestBody User user
-    ) {
-        try {
-            user.setUpdateDate(java.time.OffsetDateTime.now());
-            ResponseEntity<User[]> response = supabaseService.updateUserById(id, user, User[].class);
-            User[] users = response.getBody();
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
-        }
-    }
-
-    @Operation(
-            summary = "Soft delete user",
-            description = """
-                    Mark user as deleted by setting status = 0 (user data is not physically deleted)
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User deleted successfully"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "404", description = "User not found"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> deleteUser(
-            @Parameter(description = "User ID to delete", example = "1", required = true)
-            @PathVariable Long id
-    ) {
-        try {
-            ResponseEntity<User[]> response = supabaseService.softDeleteUser(id, User[].class);
-            User[] users = response.getBody();
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
-        }
-    }
-
-    @Operation(
-            summary = "Restore deleted user",
-            description = """
-                    Restore a soft-deleted user by setting status back to 1
-                    
-                    **Authentication Required:** Bearer token in Authorization header
-                    """,
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User restored successfully"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
-            @ApiResponse(responseCode = "404", description = "User not found"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @PutMapping(value = "/{id}/restore", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<User>> restoreUser(
-            @Parameter(description = "User ID to restore", example = "1", required = true)
-            @PathVariable Long id
-    ) {
-        try {
-            ResponseEntity<User[]> response = supabaseService.restoreUser(id, User[].class);
-            User[] users = response.getBody();
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(users != null ? Arrays.asList(users) : Arrays.asList());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Arrays.asList());
-        }
-    }
-
-    /**
-     * DTO class for login request
-     */
-    @Data
-    public static class LoginRequest {
-        @io.swagger.v3.oas.annotations.media.Schema(
-                description = "Username for login",
-                example = "conbokhanh",
-                requiredMode = io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED
-        )
-        private String username_login;
-
-        @io.swagger.v3.oas.annotations.media.Schema(
-                description = "Password for login",
-                example = "Duytunbua2003",
-                requiredMode = io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED
-        )
-        private String password_login;
     }
 }
