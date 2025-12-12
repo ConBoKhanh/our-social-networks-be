@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -15,10 +16,10 @@ import java.time.OffsetDateTime;
 @Schema(description = "User entity representing a social network user")
 public class User {
 
-    private Long id;
+    @Schema(description = "User ID", accessMode = Schema.AccessMode.READ_ONLY)
+    private UUID id; // Supabase dùng uuid
 
     @JsonProperty("createDate")
-    @Schema(description = "Date and time when the user was created", example = "2024-01-15T10:30:00Z")
     private OffsetDateTime createDate;
 
     @JsonProperty("username_login")
@@ -48,5 +49,24 @@ public class User {
     @JsonProperty("updateDate")
     private OffsetDateTime updateDate;
 
+    // Contact fields
+    private String email;                  // email
+    @JsonProperty("gmail")
+    private String gmail;                  // gmail (giữ trường cũ)
+    @JsonProperty("provider")
+    private String provider;               // google / password / ...
+    @JsonProperty("openid_sub")
+    private String openidSub;              // sub từ Google
+    @JsonProperty("email_verified")
+    private Boolean emailVerified;         // email verified flag
+
     private Integer status;
+
+    @JsonProperty("role_id")
+    private UUID roleId; // Foreign key UUID
+
+    // JOIN Role(*)
+    @JsonProperty("Role")
+    @Schema(description = "Role info (read-only)", accessMode = Schema.AccessMode.READ_ONLY)
+    private Role role;  // Supabase tự trả object Role
 }

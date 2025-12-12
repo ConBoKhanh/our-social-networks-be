@@ -15,7 +15,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
 @Tag(name = "Health Check", description = "Server health monitoring endpoints")
 public class HealthCheckController {
 

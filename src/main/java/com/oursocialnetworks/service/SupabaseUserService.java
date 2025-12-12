@@ -1,12 +1,13 @@
 package com.oursocialnetworks.service;
 
 import com.oursocialnetworks.config.SupabaseConfig;
+import com.oursocialnetworks.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,6 +44,36 @@ public class SupabaseUserService {
     }
 
     // =========================
+    // HELPER: User payload without nested Role
+    // =========================
+    private Map<String, Object> toUserPayload(User user) {
+        Map<String, Object> payload = new HashMap<>();
+        if (user.getId() != null) payload.put("id", user.getId());
+        payload.put("username_login", user.getUsernameLogin());
+        payload.put("password_login", user.getPasswordLogin());
+        payload.put("image", user.getImage());
+        payload.put("username", user.getUsername());
+        payload.put("description", user.getDescription());
+        payload.put("place_of_residence", user.getPlaceOfResidence());
+        payload.put("id_friends", user.getIdFriends());
+        payload.put("date-of-birth", user.getDateOfBirth() != null ? user.getDateOfBirth().toString() : null);
+        payload.put("id_relationship", user.getIdRelationship());
+        payload.put("createDate", user.getCreateDate() != null ? user.getCreateDate().toString() : null);
+        payload.put("updateDate", user.getUpdateDate() != null ? user.getUpdateDate().toString() : null);
+        payload.put("email", user.getEmail());
+        payload.put("gmail", user.getGmail());
+        payload.put("provider", user.getProvider());
+        payload.put("openid_sub", user.getOpenidSub());
+        payload.put("email_verified", user.getEmailVerified());
+        payload.put("status", user.getStatus());
+        if (user.getRoleId() != null) {
+            payload.put("role_id", user.getRoleId());
+        }
+        // Role object intentionally excluded (view only)
+        return payload;
+    }
+
+    // =========================
     // GENERIC GET
     // =========================
     public <T> ResponseEntity<T> get(String domain, Map<String, String> params, Class<T> responseType) {
@@ -63,8 +94,13 @@ public class SupabaseUserService {
         headers.set("Prefer", "return=representation"); // Return created object
         var url = d.getUrl() + "/rest/v1/" + d.getTable();
 
-        HttpEntity<T> entity = new HttpEntity<>(body, headers);
-        return restTemplate.exchange(url, HttpMethod.POST, entity, responseType);
+        try {
+            HttpEntity<T> entity = new HttpEntity<>(body, headers);
+            return restTemplate.exchange(url, HttpMethod.POST, entity, responseType);
+        } catch (RestClientResponseException ex) {
+            System.err.println("[Supabase POST error] status=" + ex.getStatusCode() + " body=" + ex.getResponseBodyAsString());
+            throw ex;
+        }
     }
 
     // =========================
@@ -76,8 +112,13 @@ public class SupabaseUserService {
         headers.set("Prefer", "return=representation"); // Return updated object
         var url = buildUrl(d.getUrl(), d.getTable(), params);
 
-        HttpEntity<T> entity = new HttpEntity<>(body, headers);
-        return restTemplate.exchange(url, HttpMethod.PUT, entity, responseType);
+        try {
+            HttpEntity<T> entity = new HttpEntity<>(body, headers);
+            return restTemplate.exchange(url, HttpMethod.PUT, entity, responseType);
+        } catch (RestClientResponseException ex) {
+            System.err.println("[Supabase PUT error] status=" + ex.getStatusCode() + " body=" + ex.getResponseBodyAsString());
+            throw ex;
+        }
     }
 
     // =========================
@@ -101,7 +142,7 @@ public class SupabaseUserService {
      */
     public <T> ResponseEntity<T> getAllActiveUsers(Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
-        params.put("select", "*");
+        params.put("select", "*,Role(*)");
         params.put("status", "eq.1");
         params.put("order", "id.desc"); // Newest first
         params.put("limit", "100"); // Limit to prevent timeout
@@ -124,11 +165,11 @@ public class SupabaseUserService {
     /**
      * Get user by ID with status = 1
      */
-    public <T> ResponseEntity<T> getUserById(Long id, Class<T> responseType) {
+    public <T> ResponseEntity<T> getUserById(String id, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("id", "eq." + id);
         params.put("status", "eq.1");
-        params.put("select", "*");
+        params.put("select", "*,Role(*)");
         return get("user", params, responseType);
     }
 
@@ -139,7 +180,7 @@ public class SupabaseUserService {
         Map<String, String> params = new HashMap<>();
         params.put("username", "ilike.*" + username + "*");
         params.put("status", "eq.1");
-        params.put("select", "*");
+        params.put("select", "*,Role(*)");
         params.put("limit", "50"); // Limit search results
         return get("user", params, responseType);
     }
@@ -147,8 +188,8 @@ public class SupabaseUserService {
     /**
      * Create new user
      */
-    public <T, R> ResponseEntity<R> createUser(T user, Class<R> responseType) {
-        return post("user", user, responseType);
+    public <R> ResponseEntity<R> createUser(User user, Class<R> responseType) {
+        return post("user", toUserPayload(user), responseType);
     }
 
     /**
@@ -157,7 +198,11 @@ public class SupabaseUserService {
     public <T, R> ResponseEntity<R> updateUserById(Long id, T user, Class<R> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("id", "eq." + id);
-        return put("user", params, user, responseType);
+        Object body = user;
+        if (user instanceof User u) {
+            body = toUserPayload(u);
+        }
+        return put("user", params, body, responseType);
     }
 
     /**
@@ -194,7 +239,7 @@ public class SupabaseUserService {
     public <T> ResponseEntity<T> getDeletedUsers(Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
         params.put("status", "eq.0");
-        params.put("select", "*");
+        params.put("select", "*,Role(*)");
         params.put("order", "updateDate.desc");
         params.put("limit", "50");
         return get("user", params, responseType);
@@ -208,8 +253,55 @@ public class SupabaseUserService {
         params.put("username_login", "eq." + username);
         params.put("password_login", "eq." + password);
         params.put("status", "eq.1");
-        params.put("select", "*");
+        params.put("select", "*,Role(*)");
         params.put("limit", "1"); // Only need 1 user
         return get("user", params, responseType);
     }
+
+    /**
+     * Find user by email.
+     * If not exist → create new user.
+     */
+    public User findOrCreateUser(String email) {
+
+        try {
+            // 1. Tìm user theo email
+            Map<String, String> params = new HashMap<>();
+            params.put("email", "eq." + email);
+            params.put("limit", "1");
+
+            ResponseEntity<User[]> response =
+                    get("user", params, User[].class);
+
+            if (response.getBody() != null &&
+                    response.getBody().length > 0) {
+
+                System.out.println("User đã tồn tại: " + email);
+                return response.getBody()[0];
+            }
+
+            // 2. Không tìm thấy → tạo user mới
+            Map<String, Object> newUser = new HashMap<>();
+            newUser.put("email", email);
+            newUser.put("username", email.split("@")[0]);
+            newUser.put("status", 1);
+            newUser.put("createDate", java.time.OffsetDateTime.now().toString());
+            newUser.put("updateDate", java.time.OffsetDateTime.now().toString());
+
+            ResponseEntity<User[]> created =
+                    post("user", newUser, User[].class);
+
+            if (created.getBody() != null && created.getBody().length > 0) {
+                System.out.println("Tạo user mới thành công: " + email);
+                return created.getBody()[0];
+            }
+
+            throw new RuntimeException("Không thể tạo user");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Lỗi xử lý findOrCreateUser: " + e.getMessage());
+        }
+    }
+
 }
