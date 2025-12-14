@@ -55,8 +55,9 @@ public class EmailService {
 
     /**
      * Gửi email mật khẩu tạm thời cho user mới từ Google OAuth2
+     * @return true nếu gửi thành công, false nếu thất bại
      */
-    public void sendTempPasswordEmail(String email, String username, String tempPassword) {
+    public boolean sendTempPasswordEmail(String email, String username, String tempPassword) {
         try {
             String subject = "Mật khẩu tạm thời - Our Social Networks";
             String body = String.format("""
@@ -83,14 +84,15 @@ public class EmailService {
                 Our Social Networks Team
                 """, username, email, username, tempPassword);
             
-            sendEmail(email, subject, body);
+            return sendEmail(email, subject, body);
             
         } catch (Exception e) {
             System.err.println("Failed to send temp password email to " + email + ": " + e.getMessage());
+            return false;
         }
     }
 
-    private void sendEmail(String toEmail, String subject, String body) {
+    private boolean sendEmail(String toEmail, String subject, String body) {
         try {
             // Kiểm tra nếu email bị tắt hoặc chưa config
             if (!emailEnabled || emailUsername == null || emailUsername.trim().isEmpty()) {
@@ -101,7 +103,7 @@ public class EmailService {
                 System.out.println("Email enabled: " + emailEnabled);
                 System.out.println("Email username configured: " + (emailUsername != null && !emailUsername.trim().isEmpty()));
                 System.out.println("====================================================");
-                return;
+                return true; // Trả về true vì đã "gửi" (log)
             }
 
             SimpleMailMessage message = new SimpleMailMessage();
@@ -113,6 +115,7 @@ public class EmailService {
             mailSender.send(message);
             
             System.out.println("✅ Email sent successfully to: " + toEmail);
+            return true;
             
         } catch (Exception e) {
             System.err.println("❌ Failed to send email to " + toEmail + ": " + e.getMessage());
@@ -124,6 +127,7 @@ public class EmailService {
             System.out.println("Subject: " + subject);
             System.out.println("Body: " + body);
             System.out.println("==============================");
+            return false;
         }
     }
 }

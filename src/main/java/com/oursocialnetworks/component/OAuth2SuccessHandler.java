@@ -73,32 +73,51 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             boolean isNewUser = result.isNewUser();
             String tempPassword = result.getTempPassword();
 
-            System.out.println("User result: isNewUser=" + isNewUser + ", userId=" + (user != null ? user.getId() : "null"));
+            System.out.println("User result: isNewUser=" + isNewUser + ", userId=" + (user != null ? user.getId() : "null") + ", status=" + (user != null ? user.getStatus() : "null"));
 
-            if (isNewUser) {
-                // USER MỚI - Gửi email password và redirect đến trang đổi mật khẩu
-                System.out.println("NEW USER - Sending temp password email and redirecting to change-password");
+            // Kiểm tra status - null hoặc 2 đều cần đổi mật khẩu
+            Integer userStatus = user.getStatus();
+            boolean needChangePassword = isNewUser || userStatus == null || userStatus == 2;
+            
+            System.out.println("Check: isNewUser=" + isNewUser + ", userStatus=" + userStatus + ", needChangePassword=" + needChangePassword);
+            
+            if (needChangePassword) {
+                // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU - Gửi email password và redirect đến trang đổi mật khẩu
+                System.out.println("NEW USER OR STATUS=2 USER - Will send email and redirect to change-password");
+                System.out.println("User status: " + userStatus + ", isNewUser: " + isNewUser);
                 
+                // Gửi email và lưu status vào session
+                boolean emailSent = false;
                 if (tempPassword != null) {
                     try {
-                        emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
-                        System.out.println("Temp password email sent successfully");
+                        System.out.println("Sending temp password email...");
+                        emailSent = emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
+                        System.out.println("Email send result: " + emailSent);
                     } catch (Exception emailEx) {
                         System.err.println("Failed to send temp password email: " + emailEx.getMessage());
-                        // Continue anyway - user can request password reset later
+                        emailSent = false;
                     }
                 }
                 
                 // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
                 updateOAuth2Info(user, sub, emailVerified);
                 
-                // Redirect đến trang đổi mật khẩu của BE với thông tin user
-                String redirectUrl = "/change-password?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
-                        + "&isNewUser=true"
-                        + "&message=" + URLEncoder.encode("Tai khoan moi da duoc tao! Vui long kiem tra email de lay mat khau tam thoi.", StandardCharsets.UTF_8);
+                // Redirect đến trang processing trước, sau đó mới đến change-password
+                String changePasswordUrl = "/change-password?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                        + "&isNewUser=" + isNewUser
+                        + "&emailSent=" + emailSent
+                        + "&message=" + URLEncoder.encode(
+                            isNewUser ? "Tai khoan moi da duoc tao! Vui long kiem tra email de lay mat khau tam thoi." 
+                                     : "Tai khoan cua ban can doi mat khau de tiep tuc su dung.", StandardCharsets.UTF_8);
+                
+                String processingUrl = "/processing?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                        + "&isNewUser=" + isNewUser
+                        + "&emailSent=" + emailSent
+                        + "&redirectUrl=" + URLEncoder.encode(changePasswordUrl, StandardCharsets.UTF_8);
 
-                System.out.println("Redirecting NEW USER to: " + redirectUrl);
-                response.sendRedirect(redirectUrl);
+                System.out.println("Redirecting USER to processing page: " + processingUrl);
+                response.sendRedirect(processingUrl);
+                System.out.println("Redirect sent successfully!");
                 
             } else {
                 // USER CŨ - Tạo token và redirect về FE callback

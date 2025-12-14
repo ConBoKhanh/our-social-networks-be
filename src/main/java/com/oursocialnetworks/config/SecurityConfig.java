@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/login",                    // Trang login HTML
                                 "/change-password",          // Trang đổi mật khẩu HTML
+                                "/processing",               // Trang loading khi tạo tài khoản
                                 "/oauth2/**",                // OAuth2 endpoints
                                 "/login/oauth2/**",          // OAuth2 callback
                                 "/auth/login",               // JWT login endpoint

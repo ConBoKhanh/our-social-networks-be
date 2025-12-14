@@ -8,6 +8,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class ChangePasswordController {
 
+    @GetMapping("/processing")
+    public String processingPage(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String isNewUser,
+            @RequestParam(required = false) String emailSent,
+            @RequestParam(required = false) String redirectUrl,
+            Model model) {
+        model.addAttribute("email", email != null ? email : "");
+        model.addAttribute("isNewUser", "true".equals(isNewUser));
+        model.addAttribute("emailSent", "true".equals(emailSent));
+        model.addAttribute("redirectUrl", redirectUrl != null ? redirectUrl : "/change-password");
+        return "processing";
+    }
+
     @GetMapping("/change-password")
     public String changePasswordPage(
             @RequestParam(required = false) String email,

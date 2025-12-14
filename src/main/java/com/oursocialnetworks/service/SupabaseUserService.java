@@ -361,19 +361,35 @@ public class SupabaseUserService {
      */
     public UserCreationResult findOrCreateUser(String email) {
         try {
+            System.out.println("========== FIND OR CREATE USER DEBUG ==========");
+            System.out.println("Searching for email: " + email);
+            
             // 1. Tìm user theo email
             Map<String, String> params = new HashMap<>();
             params.put("email", "eq." + email);
             params.put("limit", "1");
             params.put("select", "*,Role(*)");
 
+            System.out.println("Query params: " + params);
             ResponseEntity<User[]> response = get("user", params, User[].class);
+            
+            System.out.println("Response status: " + response.getStatusCode());
+            System.out.println("Response body is null: " + (response.getBody() == null));
+            if (response.getBody() != null) {
+                System.out.println("Response body length: " + response.getBody().length);
+            }
 
             if (response.getBody() != null && response.getBody().length > 0) {
-                System.out.println("User đã tồn tại: " + email);
                 User existingUser = response.getBody()[0];
+                System.out.println("✅ User đã tồn tại: " + email);
+                System.out.println("User ID: " + existingUser.getId());
+                System.out.println("User Status: " + existingUser.getStatus());
+                System.out.println("User Provider: " + existingUser.getProvider());
+                System.out.println("===============================================");
                 return new UserCreationResult(existingUser, false, null);
             }
+            
+            System.out.println("❌ User không tồn tại, sẽ tạo mới: " + email);
 
             // 2. Tìm role "User" để lấy UUID
             UUID defaultRoleId = getDefaultRoleId();
@@ -396,11 +412,16 @@ public class SupabaseUserService {
             newUser.put("updateDate", LocalDate.now().toString());
             newUser.put("role_id", defaultRoleId.toString());
 
+            System.out.println("Creating new user with data: " + newUser);
             ResponseEntity<User[]> created = post("user", newUser, User[].class);
-
+            
+            System.out.println("Create response status: " + created.getStatusCode());
             if (created.getBody() != null && created.getBody().length > 0) {
-                System.out.println("Tạo user mới thành công: " + email);
                 User newUserObj = created.getBody()[0];
+                System.out.println("✅ Tạo user mới thành công: " + email);
+                System.out.println("New User ID: " + newUserObj.getId());
+                System.out.println("New User Status: " + newUserObj.getStatus());
+                System.out.println("===============================================");
                 return new UserCreationResult(newUserObj, true, tempPassword);
             }
 
