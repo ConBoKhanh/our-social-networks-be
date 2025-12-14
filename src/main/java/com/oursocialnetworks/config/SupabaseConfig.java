@@ -22,15 +22,17 @@ public class SupabaseConfig {
         private String table;
     }
 
-    // Initialize from properties
-    public void setUser(DomainConfig user) {
-        domains.put("user", user);
+    // Initialize from properties - Spring Boot sẽ gọi setDomains với nested map
+    public void setDomains(Map<String, DomainConfig> domains) {
+        this.domains = domains;
     }
 
     @PostConstruct
     public void init() {
         System.out.println("========== SUPABASE CONFIG ==========");
         System.out.println("Domains size: " + domains.size());
+        System.out.println("Available domains: " + domains.keySet());
+        
         if (domains.containsKey("user")) {
             DomainConfig user = domains.get("user");
             System.out.println("User URL: " + user.getUrl());
@@ -38,6 +40,15 @@ public class SupabaseConfig {
             System.out.println("User Key exists: " + (user.getKey() != null));
         } else {
             System.out.println("ERROR: 'user' domain not found!");
+        }
+        
+        if (domains.containsKey("role")) {
+            DomainConfig role = domains.get("role");
+            System.out.println("Role URL: " + role.getUrl());
+            System.out.println("Role Table: " + role.getTable());
+            System.out.println("Role Key exists: " + (role.getKey() != null));
+        } else {
+            System.out.println("WARNING: 'role' domain not found!");
         }
         System.out.println("====================================");
     }

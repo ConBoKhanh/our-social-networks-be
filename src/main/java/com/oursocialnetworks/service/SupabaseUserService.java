@@ -448,27 +448,36 @@ public class SupabaseUserService {
         try {
             System.out.println("Querying for default 'User' role from database...");
             
+            // Thử query role từ database
             Map<String, String> params = new HashMap<>();
             params.put("role", "eq.User");  // Tìm role có tên là "User"
             params.put("status", "eq.1");
             params.put("limit", "1");
 
-            ResponseEntity<Role[]> response = get("role", params, Role[].class);
+            try {
+                ResponseEntity<Role[]> response = get("role", params, Role[].class);
 
-            if (response.getBody() != null && response.getBody().length > 0) {
-                UUID roleId = response.getBody()[0].getId();
-                System.out.println("Found default role 'User' with ID: " + roleId);
-                return roleId;
+                if (response.getBody() != null && response.getBody().length > 0) {
+                    UUID roleId = response.getBody()[0].getId();
+                    System.out.println("Found default role 'User' with ID: " + roleId);
+                    return roleId;
+                }
+            } catch (Exception queryEx) {
+                System.err.println("WARNING: Cannot query Role table (might be RLS protected): " + queryEx.getMessage());
+                // Fallback to null - let user creation fail with clear error
             }
 
             System.err.println("ERROR: Role 'User' not found in database!");
-            throw new RuntimeException("Không tìm thấy role 'User' trong hệ thống. Vui lòng tạo role 'User' trong database.");
+            System.err.println("SOLUTION: Please ensure Role table has a record with role='User' and status=1");
+            System.err.println("ALTERNATIVE: Set role_id to NULL in User table and remove foreign key constraint");
+            throw new RuntimeException("Không tìm thấy role 'User' trong hệ thống. Vui lòng kiểm tra bảng Role hoặc tắt RLS cho bảng Role.");
 
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             System.err.println("ERROR querying default role: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("Lỗi khi tìm role mặc định: " + e.getMessage());
-            return UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         }
     }
 
