@@ -40,7 +40,7 @@ public class AuthController {
     @Value("${spring.security.oauth2.client.registration.google.client-id:}")
     private String googleClientId;
 
-    @Value("${app.frontend.url:https://conbokhanh.io.vn}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
 
     @Autowired
@@ -230,6 +230,71 @@ public class AuthController {
     }
 
     // ============================
+    //  POST /auth/change-password-new-user - Change password for new users (no auth required)
+    // ============================
+    @Operation(
+            summary = "Change password for new users",
+            description = "Change temporary password for new users (no authentication required)"
+    )
+    @PostMapping("/change-password-new-user")
+    public ResponseEntity<AuthResponse> changePasswordNewUser(@RequestBody Map<String, String> request) {
+        try {
+            String email = request.get("email");
+            String tempPassword = request.get("tempPassword");
+            String newPassword = request.get("newPassword");
+            String confirmPassword = request.get("confirmPassword");
+
+            if (email == null || tempPassword == null || newPassword == null || confirmPassword == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Thiếu thông tin bắt buộc"));
+            }
+
+            // Validate new password confirmation
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Xác nhận mật khẩu không khớp"));
+            }
+
+            // Find user by email and verify temp password
+            ResponseEntity<User[]> userResponse = userService.loginUser(email, tempPassword, User[].class);
+            User[] users = userResponse.getBody();
+            
+            if (users == null || users.length == 0) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(AuthResponse.error("Email hoặc mật khẩu tạm thời không đúng"));
+            }
+
+            User user = users[0];
+
+            // Check if user has temporary password status
+            if (user.getStatus() != 2) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Tài khoản này không cần đổi mật khẩu tạm thời"));
+            }
+
+            // Update password and status
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put("password_login", newPassword);
+            updateData.put("status", 1); // Change from temporary (2) to active (1)
+            updateData.put("updateDate", java.time.LocalDate.now().toString());
+            
+            Map<String, String> params = new HashMap<>();
+            params.put("id", "eq." + user.getId());
+            
+            userService.put("user", params, updateData, User[].class);
+
+            return ResponseEntity.ok(AuthResponse.success(
+                "Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.",
+                null, null, null, false, null
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(AuthResponse.error("Đổi mật khẩu thất bại: " + e.getMessage()));
+        }
+    }
+
+    // ============================
     //  POST /auth/change-password - Change password for status = 2 users
     // ============================
     @Operation(
@@ -305,6 +370,51 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(AuthResponse.error("Đổi mật khẩu thất bại: " + e.getMessage()));
+        }
+    }
+
+    // ============================
+    //  POST /auth/login/after-password-change - Login sau khi đổi password
+    // ============================
+    @Operation(
+            summary = "Login after password change",
+            description = "Login with new password after changing from temporary password"
+    )
+    @PostMapping("/login/after-password-change")
+    public ResponseEntity<AuthResponse> loginAfterPasswordChange(@RequestBody BasicLoginRequest req) {
+        try {
+            ResponseEntity<User[]> res = userService.loginUser(
+                    req.getUsernameLogin(),
+                    req.getPasswordLogin(),
+                    User[].class
+            );
+
+            User[] users = res.getBody();
+            if (users == null || users.length == 0) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(AuthResponse.error("Tên đăng nhập hoặc mật khẩu không đúng"));
+            }
+
+            User user = users[0];
+            
+            // Check if user still has temporary password status
+            if (user.getStatus() == 2) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(AuthResponse.error("Vui lòng đổi mật khẩu tạm thời trước khi đăng nhập"));
+            }
+
+            String accessToken = jwtService.generateToken(user);
+            String refreshToken = jwtService.generateRefreshToken(user);
+
+            AuthResponse response = AuthResponse.success(
+                "Đăng nhập thành công! Chào mừng bạn quay lại.", 
+                accessToken, refreshToken, user, false, null
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(AuthResponse.error("Đăng nhập thất bại: " + e.getMessage()));
         }
     }
 

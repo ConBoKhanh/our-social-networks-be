@@ -4,6 +4,7 @@ package com.oursocialnetworks.service;
 import com.oursocialnetworks.entity.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -13,7 +14,14 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private final String SECRET = "a9f3c4e18d7b2bb4f8c0a1d29e4f6c12d8e79b0fe3a4c1d2f7b9a6e0c4d3f812";
+    @Value("${jwt.secret}")
+    private String SECRET;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshExpiration;
 
     public String generateToken(User user) {
         // Determine role based on user's role or default to USER
@@ -27,7 +35,7 @@ public class JwtService {
                 .claim("email", user.getUsernameLogin())
                 .claim("role", role)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 3600_000)) // 1h
+                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
                 .signWith(SignatureAlgorithm.HS256, SECRET)
                 .compact();
     }
@@ -35,7 +43,7 @@ public class JwtService {
     public String generateRefreshToken(User user) {
         return Jwts.builder()
                 .setSubject(user.getId().toString())
-                .setExpiration(new Date(System.currentTimeMillis() + 7 * 86400_000))
+                .setExpiration(new Date(System.currentTimeMillis() + refreshExpiration))
                 .signWith(SignatureAlgorithm.HS256, SECRET)
                 .compact();
     }

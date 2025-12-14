@@ -16,6 +16,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
 
 @Component
 @RequiredArgsConstructor
@@ -25,7 +27,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtService jwtService;
     private final EmailService emailService;
 
-    @Value("${app.frontend.url:https://conbokhanh.io.vn}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
 
     @Override
@@ -40,10 +42,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Lấy email từ OAuth2
         String email = oAuth2User.getAttribute("email");
         String sub = oAuth2User.getAttribute("sub");
+        String name = oAuth2User.getAttribute("name");
         Boolean emailVerified = oAuth2User.getAttribute("email_verified");
 
         if (email == null) {
-            response.sendRedirect(frontendUrl + "/login?error=no_email");
+            redirectToFrontendWithError(response, "Không thể lấy email từ Google");
             return;
         }
 
@@ -54,9 +57,73 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             boolean isNewUser = result.isNewUser();
             String tempPassword = result.getTempPassword();
 
-            // Bổ sung thông tin OAuth2 nếu còn thiếu
+            if (isNewUser) {
+                // USER MỚI - Gửi email, đổi password tự động, và tạo token
+                if (tempPassword != null) {
+                    // Tự động đổi password từ temp sang password mới
+                    String newPassword = generateNewPassword(email); // Tạo password mới
+                    
+                    // Update password và status trong database
+                    updateUserPasswordAndStatus(user, newPassword);
+                    
+                    // Update local user object
+                    user.setPasswordLogin(newPassword);
+                    user.setStatus(1); // Active status
+                    
+                    // Gửi email thông báo tài khoản đã được kích hoạt với password mới
+                    emailService.sendAccountActivatedEmail(email, user.getUsername(), newPassword);
+                }
+                
+                // Update thông tin OAuth2
+                updateOAuth2Info(user, sub, emailVerified);
+                
+                // Tạo JWT tokens cho user mới
+                String accessToken = jwtService.generateToken(user);
+                String refreshToken = jwtService.generateRefreshToken(user);
+
+                // Redirect về FE với tokens và thông báo
+                UriComponentsBuilder builder = UriComponentsBuilder
+                        .fromUriString(frontendUrl + "/auth/callback")
+                        .queryParam("accessToken", accessToken)
+                        .queryParam("refreshToken", refreshToken)
+                        .queryParam("status", "success")
+                        .queryParam("isNewUser", "true")
+                        .queryParam("message", "Tài khoản mới đã được tạo và kích hoạt thành công! Thông tin đăng nhập đã được gửi qua email.");
+
+                response.sendRedirect(builder.build().toUriString());
+                
+            } else {
+                // USER CŨ - Tạo token và redirect về dashboard
+                
+                // Update thông tin OAuth2 nếu cần
+                updateOAuth2Info(user, sub, emailVerified);
+                
+                // Tạo JWT tokens
+                String accessToken = jwtService.generateToken(user);
+                String refreshToken = jwtService.generateRefreshToken(user);
+
+                // Redirect về FE với tokens
+                UriComponentsBuilder builder = UriComponentsBuilder
+                        .fromUriString(frontendUrl + "/auth/callback")
+                        .queryParam("accessToken", accessToken)
+                        .queryParam("refreshToken", refreshToken)
+                        .queryParam("status", "success")
+                        .queryParam("message", "Đăng nhập thành công!")
+                        .queryParam("userStatus", user.getStatus()); // Để FE biết có cần đổi password không
+
+                response.sendRedirect(builder.build().toUriString());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            redirectToFrontendWithError(response, "Đăng nhập thất bại: " + e.getMessage());
+        }
+    }
+
+    private void updateOAuth2Info(User user, String sub, Boolean emailVerified) {
+        try {
             boolean needUpdate = false;
-            if (user.getOpenidSub() == null) {
+            if (user.getOpenidSub() == null && sub != null) {
                 user.setOpenidSub(sub);
                 needUpdate = true;
             }
@@ -64,53 +131,55 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 user.setProvider("google");
                 needUpdate = true;
             }
-            if (user.getEmailVerified() == null) {
-                user.setEmailVerified(Boolean.TRUE.equals(emailVerified));
+            if (user.getEmailVerified() == null && emailVerified != null) {
+                user.setEmailVerified(emailVerified);
                 needUpdate = true;
             }
 
-            // Update user nếu cần
             if (needUpdate) {
-                // Convert UUID to Long if needed, or use different method
+                // Update user info in database
+                System.out.println("Updating OAuth2 info for user: " + user.getEmail());
                 // userService.updateUserById(user.getId(), user, User[].class);
-                System.out.println("User info updated (OAuth2): " + user.getEmail());
             }
-
-            // Gửi email nếu là user mới
-            if (isNewUser && tempPassword != null) {
-                emailService.sendNewAccountEmail(email, user.getUsername(), tempPassword);
-            }
-
-            // Tạo JWT tokens
-            String accessToken = jwtService.generateToken(user);
-            String refreshToken = jwtService.generateRefreshToken(user);
-
-            // Redirect về FE với tokens và thông tin trong URL params
-            UriComponentsBuilder builder = UriComponentsBuilder
-                    .fromUriString(frontendUrl + "/auth/callback")
-                    .queryParam("accessToken", accessToken)
-                    .queryParam("refreshToken", refreshToken)
-                    .queryParam("status", "success")
-                    .queryParam("isNewUser", isNewUser);
-
-            if (isNewUser) {
-                builder.queryParam("message", "Tài khoản mới đã được tạo. Vui lòng kiểm tra email để lấy mật khẩu tạm thời.");
-            } else {
-                builder.queryParam("message", "Đăng nhập thành công!");
-            }
-
-            String redirectUrl = builder.build().toUriString();
-            response.sendRedirect(redirectUrl);
-
         } catch (Exception e) {
-            e.printStackTrace();
-            String errorUrl = UriComponentsBuilder
-                    .fromUriString(frontendUrl + "/auth/callback")
-                    .queryParam("status", "error")
-                    .queryParam("message", "Đăng nhập thất bại: " + e.getMessage())
-                    .build()
-                    .toUriString();
-            response.sendRedirect(errorUrl);
+            System.err.println("Failed to update OAuth2 info: " + e.getMessage());
         }
+    }
+
+    private String generateNewPassword(String email) {
+        // Tạo password mới từ email (hoặc có thể random)
+        // Ví dụ: lấy phần trước @ và thêm số random
+        String username = email.split("@")[0];
+        int randomNum = (int) (Math.random() * 1000);
+        return username + randomNum; // Ví dụ: john123
+    }
+    
+    private void updateUserPasswordAndStatus(User user, String newPassword) {
+        try {
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put("password_login", newPassword);
+            updateData.put("status", 1); // Change from temporary (2) to active (1)
+            updateData.put("updateDate", java.time.LocalDate.now().toString());
+            
+            Map<String, String> params = new HashMap<>();
+            params.put("id", "eq." + user.getId());
+            
+            userService.put("user", params, updateData, User[].class);
+            
+            System.out.println("Updated password for new user: " + user.getEmail());
+        } catch (Exception e) {
+            System.err.println("Failed to update user password: " + e.getMessage());
+            throw new RuntimeException("Failed to update user password", e);
+        }
+    }
+
+    private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
+        String errorUrl = UriComponentsBuilder
+                .fromUriString(frontendUrl + "/auth/callback")
+                .queryParam("status", "error")
+                .queryParam("message", errorMessage)
+                .build()
+                .toUriString();
+        response.sendRedirect(errorUrl);
     }
 }
