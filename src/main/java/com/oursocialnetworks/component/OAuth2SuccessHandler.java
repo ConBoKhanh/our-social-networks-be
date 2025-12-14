@@ -29,10 +29,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtService jwtService;
     private final EmailService emailService;
 
-    @Value("${app.frontend.url:}")
+    @Value("${app.frontend.url:https://conbokhanh.io.vn}")
     private String frontendUrl;
-    
-    private static final String DEFAULT_FRONTEND_URL = "http://localhost:4200";
 
     @Override
     public void onAuthenticationSuccess(
@@ -105,12 +103,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 String accessToken = jwtService.generateToken(user);
                 String refreshToken = jwtService.generateRefreshToken(user);
 
-                // Xác định frontend URL
-                String effectiveFrontendUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
-                    ? frontendUrl 
-                    : DEFAULT_FRONTEND_URL;
-                
-                String targetUrl = effectiveFrontendUrl + "/auth/callback";
+                String targetUrl = frontendUrl + "/auth/callback";
                 
                 String redirectUrl = targetUrl 
                         + "?accessToken=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
@@ -162,11 +155,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
 
     private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
-        String effectiveFrontendUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
-            ? frontendUrl 
-            : DEFAULT_FRONTEND_URL;
-            
-        String errorUrl = effectiveFrontendUrl + "/auth/callback"
+        String errorUrl = frontendUrl + "/auth/callback"
                 + "?status=error"
                 + "&message=" + URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
         
