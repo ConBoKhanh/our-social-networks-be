@@ -15,6 +15,7 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            margin: 0;
         }
 
         .main-container {
@@ -62,8 +63,8 @@
         }
 
         .phone-user-info { flex: 1; }
-        .phone-username { color: #fff; font-weight: 600; font-size: 14px; }
-        .phone-location { color: #a8a8a8; font-size: 12px; }
+        .phone-username { color: #f5f5f5; font-weight: 600; font-size: 14px; }
+        .phone-location { color: #c7c7c7; font-size: 12px; }
 
         .phone-post {
             background: #121212;
@@ -114,7 +115,7 @@
         .logo h1 {
             font-family: 'Billabong', cursive;
             font-size: 48px;
-            color: #fff;
+            color: #f5f5f5;
         }
 
         .form-group { margin-bottom: 8px; }
@@ -126,13 +127,13 @@
             border-radius: 6px;
             background: #121212;
             font-size: 14px;
-            color: #fff;
+            color: #f5f5f5;
             outline: none;
             transition: border-color 0.2s;
         }
 
-        .form-group input:focus { border-color: #a8a8a8; }
-        .form-group input::placeholder { color: #8e8e8e; }
+        .form-group input:focus { border-color: #c7c7c7; }
+        .form-group input::placeholder { color: #a8a8a8; }
 
         .btn {
             width: 100%;
@@ -201,14 +202,14 @@
 
         .btn-google {
             background: transparent;
-            color: #e0e0e0;
+            color: #f0f0f0;
             border: none;
             font-weight: 600;
             font-size: 14px;
             padding: 10px;
         }
 
-        .btn-google:hover { color: #fff; }
+        .btn-google:hover { color: #f5f5f5; }
 
         .links {
             text-align: center;
@@ -216,13 +217,13 @@
         }
 
         .links a {
-            color: #e0e0e0;
+            color: #f0f0f0;
             font-size: 12px;
             text-decoration: none;
             margin: 0 8px;
         }
 
-        .links a:hover { color: #fff; }
+        .links a:hover { color: #f5f5f5; }
 
         .signup-box {
             background: #000;
@@ -232,7 +233,7 @@
             text-align: center;
         }
 
-        .signup-box span { color: #e0e0e0; font-size: 14px; }
+        .signup-box span { color: #f0f0f0; font-size: 14px; }
         .signup-box a { color: #0095f6; font-weight: 600; text-decoration: none; }
 
         /* Toast */
@@ -246,7 +247,7 @@
 
         .toast {
             background: #262626;
-            color: #fff;
+            color: #f5f5f5;
             padding: 14px 18px;
             border-radius: 8px;
             margin-bottom: 10px;
@@ -304,9 +305,21 @@
                         <div class="tagline">Chia sẻ khoảnh khắc đẹp</div>
                     </div>
                     <div class="phone-post-actions">
-                        <span>♡</span>
-                        <span>💬</span>
-                        <span>➤</span>
+                        <span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                            </svg>
+                        </span>
+                        <span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </span>
+                        <span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12h18m-9-9l9 9-9 9"/>
+                            </svg>
+                        </span>
                     </div>
                 </div>
             </div>
@@ -357,7 +370,8 @@
 
     function loginWithGoogle() {
         showToast('Đang chuyển hướng đến Google...', 'info');
-        window.location.href = '/oauth2/authorization/google?prompt=select_account';
+        // Không cần thêm prompt ở đây vì đã được xử lý trong CustomOAuth2AuthorizationRequestResolver
+        window.location.href = '/oauth2/authorization/google';
     }
 
     async function loginWithCredentials(event) {

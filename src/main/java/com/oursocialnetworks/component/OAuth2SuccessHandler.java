@@ -48,6 +48,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     ) throws IOException, ServletException {
 
         System.out.println("========== OAuth2SuccessHandler START ==========");
+        System.out.println("Request URL: " + request.getRequestURL());
+        System.out.println("Request URI: " + request.getRequestURI());
+        System.out.println("Request Method: " + request.getMethod());
+        System.out.println("Request Headers: ");
+        request.getHeaderNames().asIterator().forEachRemaining(headerName -> 
+            System.out.println("  " + headerName + ": " + request.getHeader(headerName)));
+        System.out.println("Authentication: " + authentication.getClass().getSimpleName());
+        System.out.println("Response committed at start: " + response.isCommitted());
         
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
@@ -116,8 +124,15 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                         + "&redirectUrl=" + URLEncoder.encode(changePasswordUrl, StandardCharsets.UTF_8);
 
                 System.out.println("Redirecting USER to processing page: " + processingUrl);
-                response.sendRedirect(processingUrl);
-                System.out.println("Redirect sent successfully!");
+                System.out.println("Response committed before redirect: " + response.isCommitted());
+                
+                if (!response.isCommitted()) {
+                    response.sendRedirect(processingUrl);
+                    response.flushBuffer(); // Ensure redirect is sent immediately
+                    System.out.println("Redirect sent successfully and flushed!");
+                } else {
+                    System.err.println("ERROR: Response already committed, cannot redirect!");
+                }
                 
             } else {
                 // USER CŨ - Tạo token và redirect về FE callback
@@ -142,15 +157,27 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
                 System.out.println("Redirecting EXISTING USER to: " + targetUrl);
                 System.out.println("Full redirect URL length: " + redirectUrl.length());
+                System.out.println("Response committed before existing user redirect: " + response.isCommitted());
                 response.sendRedirect(redirectUrl);
+                response.flushBuffer(); // Ensure redirect is sent immediately
+                System.out.println("Existing user redirect sent and flushed!");
             }
 
             System.out.println("========== OAuth2SuccessHandler END ==========");
 
         } catch (Exception e) {
             System.err.println("========== OAuth2SuccessHandler ERROR ==========");
+            System.err.println("Error type: " + e.getClass().getSimpleName());
+            System.err.println("Error message: " + e.getMessage());
             e.printStackTrace();
-            redirectToFrontendWithError(response, "Dang nhap that bai: " + e.getMessage());
+            System.err.println("================================================");
+            
+            // Redirect với thông báo lỗi chi tiết hơn
+            String errorMsg = "Lỗi xử lý đăng nhập: " + e.getMessage();
+            if (e.getMessage() != null && e.getMessage().contains("role")) {
+                errorMsg = "Lỗi phân quyền. Vui lòng liên hệ admin.";
+            }
+            redirectToFrontendWithError(response, errorMsg);
         }
     }
 
@@ -188,6 +215,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 + "&message=" + URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
         
         System.err.println("Redirecting with ERROR to: " + errorUrl);
+        System.err.println("Response committed before error redirect: " + response.isCommitted());
         response.sendRedirect(errorUrl);
+        response.flushBuffer(); // Ensure redirect is sent immediately
+        System.err.println("Error redirect sent and flushed!");
     }
 }

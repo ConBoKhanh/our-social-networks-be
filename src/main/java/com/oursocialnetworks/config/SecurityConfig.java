@@ -67,6 +67,11 @@ public class SecurityConfig {
                                 "/api/ping",
                                 "/api/info",
                                 "/api/debug/public-test",
+                                "/api/debug/oauth2-config",
+                                "/api/debug/test-redirect",
+                                "/api/debug/oauth2-flow-info",
+                                "/api/debug/email-config",
+                                "/api/debug/email-preview/**",
                                 "/api/debug/test-patch/**",
                                 "/api/users/test-delete/**"
                         ).permitAll()
@@ -111,10 +116,27 @@ public class SecurityConfig {
             http.oauth2Login(oauth2 -> oauth2
                     .loginPage("/login")                           // Custom login page
                     .successHandler(oAuth2SuccessHandler)          // Handler callback
-                    // Tạm thời disable custom resolver để test
-                    // .authorizationEndpoint(authorization -> authorization
-                    //         .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver)
-                    // )
+                    .failureHandler((request, response, exception) -> {
+                        System.err.println("========== OAuth2 LOGIN FAILURE ==========");
+                        System.err.println("Request URL: " + request.getRequestURL());
+                        System.err.println("Request URI: " + request.getRequestURI());
+                        System.err.println("Error Type: " + exception.getClass().getSimpleName());
+                        System.err.println("Error Message: " + exception.getMessage());
+                        System.err.println("Request Parameters:");
+                        request.getParameterMap().forEach((key, values) -> 
+                            System.err.println("  " + key + ": " + String.join(", ", values)));
+                        exception.printStackTrace();
+                        System.err.println("==========================================");
+                        
+                        String errorMsg = exception.getMessage();
+                        if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                            errorMsg = "OAuth2 authentication failed";
+                        }
+                        response.sendRedirect("/login?error=" + java.net.URLEncoder.encode(errorMsg, java.nio.charset.StandardCharsets.UTF_8));
+                    })
+                    .authorizationEndpoint(authorization -> authorization
+                            .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver)
+                    )
                     .permitAll()
             );
         }
