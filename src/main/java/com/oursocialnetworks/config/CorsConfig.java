@@ -8,29 +8,29 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 public class CorsConfig {
 
-    // Hardcode values for simplicity
-    private String allowedOrigins = "http://localhost:4200";
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+    
+    // Default values
     private String allowedMethods = "GET,POST,PUT,DELETE,OPTIONS";
     private String allowedHeaders = "*";
     private boolean allowCredentials = true;
-    private String environment = "local";
 
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Configure origins based on environment
-        if ("local".equals(environment) || "development".equals(environment)) {
-            // Allow all origins in development
-            config.setAllowedOriginPatterns(Arrays.asList("*"));
+        // Configure origins - use frontend URL from properties
+        if (frontendUrl.contains("localhost")) {
+            // Local development - allow localhost patterns
+            config.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "https://localhost:*"));
         } else {
-            // Use specific origins in production
-            config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+            // Production - use specific frontend URL
+            config.setAllowedOrigins(Arrays.asList(frontendUrl));
         }
 
         // Configure headers
