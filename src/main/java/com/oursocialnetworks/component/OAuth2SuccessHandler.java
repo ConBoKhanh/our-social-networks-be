@@ -58,37 +58,21 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             String tempPassword = result.getTempPassword();
 
             if (isNewUser) {
-                // USER MỚI - Gửi email, đổi password tự động, và tạo token
+                // USER MỚI - Gửi email password và redirect đến trang đổi mật khẩu
                 if (tempPassword != null) {
-                    // Tự động đổi password từ temp sang password mới
-                    String newPassword = generateNewPassword(email); // Tạo password mới
-                    
-                    // Update password và status trong database
-                    updateUserPasswordAndStatus(user, newPassword);
-                    
-                    // Update local user object
-                    user.setPasswordLogin(newPassword);
-                    user.setStatus(1); // Active status
-                    
-                    // Gửi email thông báo tài khoản đã được kích hoạt với password mới
-                    emailService.sendAccountActivatedEmail(email, user.getUsername(), newPassword);
+                    // Gửi email với mật khẩu tạm thời
+                    emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
                 }
                 
-                // Update thông tin OAuth2
+                // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
                 updateOAuth2Info(user, sub, emailVerified);
                 
-                // Tạo JWT tokens cho user mới
-                String accessToken = jwtService.generateToken(user);
-                String refreshToken = jwtService.generateRefreshToken(user);
-
-                // Redirect về FE với tokens và thông báo
+                // Redirect đến trang đổi mật khẩu của BE với thông tin user
                 UriComponentsBuilder builder = UriComponentsBuilder
-                        .fromUriString(frontendUrl + "/auth/callback")
-                        .queryParam("accessToken", accessToken)
-                        .queryParam("refreshToken", refreshToken)
-                        .queryParam("status", "success")
+                        .fromUriString("/change-password")
+                        .queryParam("email", email)
                         .queryParam("isNewUser", "true")
-                        .queryParam("message", "Tài khoản mới đã được tạo và kích hoạt thành công! Thông tin đăng nhập đã được gửi qua email.");
+                        .queryParam("message", "Tài khoản mới đã được tạo! Vui lòng kiểm tra email để lấy mật khẩu tạm thời và đổi mật khẩu mới.");
 
                 response.sendRedirect(builder.build().toUriString());
                 
@@ -102,9 +86,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 String accessToken = jwtService.generateToken(user);
                 String refreshToken = jwtService.generateRefreshToken(user);
 
-                // Redirect về FE với tokens
+                // Redirect về FE với tokens (fallback nếu frontendUrl null)
+                String targetUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
+                    ? frontendUrl + "/auth/callback"
+                    : "/login"; // Fallback to login page with success message
+                
                 UriComponentsBuilder builder = UriComponentsBuilder
-                        .fromUriString(frontendUrl + "/auth/callback")
+                        .fromUriString(targetUrl)
                         .queryParam("accessToken", accessToken)
                         .queryParam("refreshToken", refreshToken)
                         .queryParam("status", "success")
@@ -146,32 +134,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         }
     }
 
-    private String generateNewPassword(String email) {
-        // Tạo password mới từ email (hoặc có thể random)
-        // Ví dụ: lấy phần trước @ và thêm số random
-        String username = email.split("@")[0];
-        int randomNum = (int) (Math.random() * 1000);
-        return username + randomNum; // Ví dụ: john123
-    }
-    
-    private void updateUserPasswordAndStatus(User user, String newPassword) {
-        try {
-            Map<String, Object> updateData = new HashMap<>();
-            updateData.put("password_login", newPassword);
-            updateData.put("status", 1); // Change from temporary (2) to active (1)
-            updateData.put("updateDate", java.time.LocalDate.now().toString());
-            
-            Map<String, String> params = new HashMap<>();
-            params.put("id", "eq." + user.getId());
-            
-            userService.put("user", params, updateData, User[].class);
-            
-            System.out.println("Updated password for new user: " + user.getEmail());
-        } catch (Exception e) {
-            System.err.println("Failed to update user password: " + e.getMessage());
-            throw new RuntimeException("Failed to update user password", e);
-        }
-    }
+
 
     private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
         String errorUrl = UriComponentsBuilder

@@ -256,7 +256,14 @@ public class AuthController {
             }
 
             // Find user by email and verify temp password
-            ResponseEntity<User[]> userResponse = userService.loginUser(email, tempPassword, User[].class);
+            Map<String, String> params = new HashMap<>();
+            params.put("email", "eq." + email);
+            params.put("password_login", "eq." + tempPassword);
+            params.put("status", "eq.2"); // Only users with temporary password
+            params.put("select", "*,Role(*)");
+            params.put("limit", "1");
+
+            ResponseEntity<User[]> userResponse = userService.get("user", params, User[].class);
             User[] users = userResponse.getBody();
             
             if (users == null || users.length == 0) {
@@ -278,10 +285,10 @@ public class AuthController {
             updateData.put("status", 1); // Change from temporary (2) to active (1)
             updateData.put("updateDate", java.time.LocalDate.now().toString());
             
-            Map<String, String> params = new HashMap<>();
-            params.put("id", "eq." + user.getId());
+            Map<String, String> updateParams = new HashMap<>();
+            updateParams.put("id", "eq." + user.getId());
             
-            userService.put("user", params, updateData, User[].class);
+            userService.put("user", updateParams, updateData, User[].class);
 
             return ResponseEntity.ok(AuthResponse.success(
                 "Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.",

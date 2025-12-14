@@ -23,6 +23,7 @@ public class SecurityConfig {
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
     private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final CustomOAuth2AuthorizationRequestResolver customOAuth2AuthorizationRequestResolver;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -49,10 +50,12 @@ public class SecurityConfig {
                         // ✅ Login Page & OAuth2 - Public
                         .requestMatchers(
                                 "/login",                    // Trang login HTML
+                                "/change-password",          // Trang đổi mật khẩu HTML
                                 "/oauth2/**",                // OAuth2 endpoints
                                 "/login/oauth2/**",          // OAuth2 callback
                                 "/auth/login",               // JWT login endpoint
                                 "/auth/login/basic",         // Username/password login endpoint
+                                "/auth/change-password-new-user", // Change password for new users (no auth)
                                 "/auth/callback",            // Auth callback endpoint
                                 "/auth/oauth2/**"            // Auth OAuth2 endpoints
                         ).permitAll()
@@ -107,6 +110,9 @@ public class SecurityConfig {
             http.oauth2Login(oauth2 -> oauth2
                     .loginPage("/login")                           // Custom login page
                     .successHandler(oAuth2SuccessHandler)          // Handler callback
+                    .authorizationEndpoint(authorization -> authorization
+                            .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver)
+                    )
                     .permitAll()
             );
         }
