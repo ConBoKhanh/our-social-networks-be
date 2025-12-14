@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import jakarta.annotation.PostConstruct;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Value("${app.frontend.url:https://conbokhanh.io.vn}")
     private String frontendUrl;
+
+    @PostConstruct
+    public void init() {
+        System.out.println("========== OAuth2SuccessHandler INIT ==========");
+        System.out.println("Frontend URL configured: " + frontendUrl);
+        System.out.println("===============================================");
+    }
 
     @Override
     public void onAuthenticationSuccess(

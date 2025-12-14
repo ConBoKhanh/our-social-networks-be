@@ -1,11 +1,28 @@
 package com.oursocialnetworks.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class EmailService {
+    
+    private final JavaMailSender mailSender;
+    
+    @Value("${app.email.from}")
+    private String fromEmail;
+    
+    @Value("${app.email.enabled:false}")
+    private boolean emailEnabled;
+    
+    @Value("${spring.mail.username:}")
+    private String emailUsername;
+
+    public EmailService(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
     
     /**
      * Gửi email thông báo tài khoản mới được tạo với password tạm thời
@@ -73,15 +90,40 @@ public class EmailService {
         }
     }
 
-    private void sendEmail(String email, String subject, String body) {
-        // Log thay vì gửi email thật (để test)
-        System.out.println("=== EMAIL NOTIFICATION ===");
-        System.out.println("To: " + email);
-        System.out.println("Subject: " + subject);
-        System.out.println("Body: " + body);
-        System.out.println("==========================");
-        
-        // TODO: Replace with actual email sending
-        // mailSender.send(createMimeMessage(email, subject, body));
+    private void sendEmail(String toEmail, String subject, String body) {
+        try {
+            // Kiểm tra nếu email bị tắt hoặc chưa config
+            if (!emailEnabled || emailUsername == null || emailUsername.trim().isEmpty()) {
+                System.out.println("=== EMAIL DISABLED/NOT CONFIGURED - LOGGING ONLY ===");
+                System.out.println("To: " + toEmail);
+                System.out.println("Subject: " + subject);
+                System.out.println("Body: " + body);
+                System.out.println("Email enabled: " + emailEnabled);
+                System.out.println("Email username configured: " + (emailUsername != null && !emailUsername.trim().isEmpty()));
+                System.out.println("====================================================");
+                return;
+            }
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject(subject);
+            message.setText(body);
+
+            mailSender.send(message);
+            
+            System.out.println("✅ Email sent successfully to: " + toEmail);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send email to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
+            
+            // Log email content for debugging
+            System.out.println("=== EMAIL FAILED - CONTENT ===");
+            System.out.println("To: " + toEmail);
+            System.out.println("Subject: " + subject);
+            System.out.println("Body: " + body);
+            System.out.println("==============================");
+        }
     }
 }

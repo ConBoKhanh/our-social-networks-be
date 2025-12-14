@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -348,20 +349,21 @@ public class AuthController {
             // user.setStatus(1); // Change status from 2 to 1 (active)
             // user.setUpdateDate(java.time.LocalDate.now());
 
-            // Save to database - Create update payload manually
-            Map<String, Object> updateData = new HashMap<>();
-            updateData.put("password_login", request.getNewPassword());
-            updateData.put("status", 1);
-            updateData.put("updateDate", java.time.LocalDate.now().toString());
-            
-            Map<String, String> params = new HashMap<>();
-            params.put("id", "eq." + userId);
-            
-            userService.put("user", params, updateData, User[].class);
-            
-            // Update local user object for token generation
+            // Save to database - Use updateUserById method
             user.setPasswordLogin(request.getNewPassword());
             user.setStatus(1);
+            user.setUpdateDate(java.time.LocalDate.now());
+            
+            // Use the existing updateUserById method
+            ResponseEntity<User[]> updateResponse = userService.updateUserById(UUID.fromString(userId), user, User[].class);
+            
+            if (updateResponse.getBody() == null || updateResponse.getBody().length == 0) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(AuthResponse.error("Không thể cập nhật mật khẩu"));
+            }
+            
+            // Get updated user from response
+            user = updateResponse.getBody()[0];
 
             // Generate new tokens
             String accessToken = jwtService.generateToken(user);
