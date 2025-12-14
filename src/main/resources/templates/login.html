@@ -359,7 +359,8 @@
     // Login with Google OAuth2
     function loginWithGoogle() {
         showAlert('Đang chuyển hướng đến Google...', 'success');
-        window.location.href = '/oauth2/authorization/google';
+        // Thêm prompt=select_account để buộc chọn tài khoản
+        window.location.href = '/oauth2/authorization/google?prompt=select_account';
     }
 
     // Login with username/password

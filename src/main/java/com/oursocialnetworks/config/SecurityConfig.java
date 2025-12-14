@@ -110,9 +110,10 @@ public class SecurityConfig {
             http.oauth2Login(oauth2 -> oauth2
                     .loginPage("/login")                           // Custom login page
                     .successHandler(oAuth2SuccessHandler)          // Handler callback
-                    .authorizationEndpoint(authorization -> authorization
-                            .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver)
-                    )
+                    // Tạm thời disable custom resolver để test
+                    // .authorizationEndpoint(authorization -> authorization
+                    //         .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver)
+                    // )
                     .permitAll()
             );
         }
