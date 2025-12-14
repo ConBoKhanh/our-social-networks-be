@@ -90,46 +90,53 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             System.out.println("Check: isNewUser=" + isNewUser + ", userStatus=" + userStatus + ", needChangePassword=" + needChangePassword);
             
             if (needChangePassword) {
-                // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU - Gửi email password và redirect đến trang đổi mật khẩu
-                System.out.println("NEW USER OR STATUS=2 USER - Will send email and redirect to change-password");
+                // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU
+                System.out.println("NEW USER OR STATUS=2 USER - Redirect first, then send email in background");
                 System.out.println("User status: " + userStatus + ", isNewUser: " + isNewUser);
-                
-                // Gửi email và lưu status vào session
-                boolean emailSent = false;
-                if (tempPassword != null) {
-                    try {
-                        System.out.println("Sending temp password email...");
-                        emailSent = emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
-                        System.out.println("Email send result: " + emailSent);
-                    } catch (Exception emailEx) {
-                        System.err.println("Failed to send temp password email: " + emailEx.getMessage());
-                        emailSent = false;
-                    }
-                }
                 
                 // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
                 updateOAuth2Info(user, sub, emailVerified);
                 
-                // Redirect đến trang processing trước, sau đó mới đến change-password
+                // REDIRECT TRƯỚC - không chờ email (KHÔNG truyền password qua URL - bảo mật)
                 String changePasswordUrl = "/change-password?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
                         + "&isNewUser=" + isNewUser
-                        + "&emailSent=" + emailSent
                         + "&message=" + URLEncoder.encode(
-                            isNewUser ? "Tai khoan moi da duoc tao! Vui long kiem tra email de lay mat khau tam thoi." 
-                                     : "Tai khoan cua ban can doi mat khau de tiep tuc su dung.", StandardCharsets.UTF_8);
+                            isNewUser ? "Tai khoan moi da duoc tao! Kiem tra email de lay mat khau tam thoi." 
+                                     : "Vui long doi mat khau de tiep tuc.", StandardCharsets.UTF_8);
                 
                 String processingUrl = "/processing?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
                         + "&isNewUser=" + isNewUser
-                        + "&emailSent=" + emailSent
                         + "&redirectUrl=" + URLEncoder.encode(changePasswordUrl, StandardCharsets.UTF_8);
 
-                System.out.println("Redirecting USER to processing page: " + processingUrl);
-                System.out.println("Response committed before redirect: " + response.isCommitted());
+                System.out.println("Redirecting USER to processing page FIRST: " + processingUrl);
                 
                 if (!response.isCommitted()) {
                     response.sendRedirect(processingUrl);
-                    response.flushBuffer(); // Ensure redirect is sent immediately
-                    System.out.println("Redirect sent successfully and flushed!");
+                    response.flushBuffer();
+                    System.out.println("✅ Redirect sent successfully!");
+                    
+                    // GỬI EMAIL SAU KHI ĐÃ REDIRECT (trong background thread)
+                    if (tempPassword != null) {
+                        final String finalEmail = email;
+                        final String finalUsername = user.getUsername();
+                        final String finalTempPassword = tempPassword;
+                        
+                        new Thread(() -> {
+                            try {
+                                System.out.println("📧 [BACKGROUND] Sending temp password email after redirect...");
+                                boolean sent = emailService.sendTempPasswordEmail(finalEmail, finalUsername, finalTempPassword);
+                                if (!sent) {
+                                    // Log password nếu email fail (để admin hỗ trợ)
+                                    System.out.println("=== EMAIL FAILED - TEMP PASSWORD FOR ADMIN SUPPORT ===");
+                                    System.out.println("Email: " + finalEmail);
+                                    System.out.println("Temp Password: " + finalTempPassword);
+                                    System.out.println("======================================================");
+                                }
+                            } catch (Exception emailEx) {
+                                System.err.println("📧 [BACKGROUND] Failed to send email: " + emailEx.getMessage());
+                            }
+                        }).start();
+                    }
                 } else {
                     System.err.println("ERROR: Response already committed, cannot redirect!");
                 }

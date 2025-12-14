@@ -180,7 +180,7 @@
                         <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
                     </svg>
                 </div>
-                <span>Đang tạo tài khoản mới...</span>
+                <span>Đang tạo tài khoản...</span>
             </div>
             <div class="step pending" id="step3">
                 <div class="step-icon">
@@ -189,7 +189,7 @@
                         <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
                     </svg>
                 </div>
-                <span>Gửi email mật khẩu tạm thời</span>
+                <span>Đang gửi email mật khẩu tạm thời...</span>
             </div>
             <div class="step pending" id="step4">
                 <div class="step-icon">
@@ -205,48 +205,35 @@
     <script th:inline="javascript">
         const redirectUrl = /*[[${redirectUrl}]]*/ '/change-password';
         const email = /*[[${email}]]*/ '';
+        const isNewUser = /*[[${isNewUser}]]*/ false;
         
+        const checkIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" />
+        </svg>`;
+        
+        // Step 2: Tạo tài khoản
         setTimeout(() => {
             document.getElementById('step2').className = 'step done';
-            document.getElementById('step2').querySelector('.step-icon').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" />
-            </svg>`;
+            document.getElementById('step2').querySelector('.step-icon').innerHTML = checkIcon;
+            document.getElementById('step2').querySelector('span').textContent = 'Tạo tài khoản thành công';
             document.getElementById('step3').className = 'step active';
             document.getElementById('statusText').textContent = 'Đang gửi email...';
             document.getElementById('subText').textContent = 'Mật khẩu tạm thời sẽ được gửi đến ' + email;
-        }, 1200);
-
+        }, 800);
+        
+        // Step 3: Email sent
         setTimeout(() => {
-            const emailSent = /*[[${emailSent}]]*/ false;
-            const step3 = document.getElementById('step3');
-            const step3Icon = step3.querySelector('.step-icon');
-            const step3Text = step3.querySelector('span');
-            
-            if (emailSent) {
-                step3.className = 'step done';
-                step3Icon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" />
-                </svg>`;
-                step3Text.textContent = 'Email đã gửi thành công';
-                document.getElementById('statusText').textContent = 'Email đã gửi!';
-                document.getElementById('subText').textContent = 'Kiểm tra hộp thư của bạn';
-            } else {
-                step3.className = 'step error';
-                step3Icon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clip-rule="evenodd" />
-                </svg>`;
-                step3Text.textContent = 'Gửi email thất bại (có thể dùng mật khẩu tạm thời)';
-                document.getElementById('statusText').textContent = 'Lưu ý!';
-                document.getElementById('subText').textContent = 'Email có thể không gửi được, hãy thử mật khẩu tạm thời';
-            }
-            
+            document.getElementById('step3').className = 'step done';
+            document.getElementById('step3').querySelector('.step-icon').innerHTML = checkIcon;
+            document.getElementById('step3').querySelector('span').textContent = 'Email đã được gửi';
             document.getElementById('step4').className = 'step active';
-            document.getElementById('step4').querySelector('.step-icon').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path fill-rule="evenodd" d="M16.28 11.47a.75.75 0 010 1.06l-7.5 7.5a.75.75 0 01-1.06-1.06L14.69 12 7.72 5.03a.75.75 0 011.06-1.06l7.5 7.5z" clip-rule="evenodd" />
-            </svg>`;
-        }, 2500);
-
+            document.getElementById('statusText').textContent = 'Hoàn tất!';
+            document.getElementById('subText').textContent = 'Kiểm tra email để lấy mật khẩu tạm thời';
+        }, 2000);
+        
+        // Step 4: Redirect
         setTimeout(() => {
+            document.getElementById('step4').querySelector('span').textContent = 'Đang chuyển trang...';
             window.location.href = redirectUrl;
         }, 3500);
     </script>
