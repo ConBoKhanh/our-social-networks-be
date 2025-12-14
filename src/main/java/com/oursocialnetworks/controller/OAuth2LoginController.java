@@ -17,11 +17,5 @@ public class OAuth2LoginController {
         return "login"; // Trả về view login.html từ templates/login.html
     }
 
-    /**
-     * Trang đổi mật khẩu
-     */
-    @GetMapping("/change-password")
-    public String changePasswordPage() {
-        return "change-password"; // Trả về view change-password.html từ templates/change-password.html
-    }
+
 }
