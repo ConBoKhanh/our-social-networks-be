@@ -95,6 +95,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             } else {
                 // USER CŨ - Tạo token và redirect về FE callback
                 System.out.println("EXISTING USER - Generating tokens and redirecting to frontend");
+                System.out.println("Frontend URL from config: " + frontendUrl);
                 
                 // Update thông tin OAuth2 nếu cần
                 updateOAuth2Info(user, sub, emailVerified);

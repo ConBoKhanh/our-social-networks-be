@@ -446,11 +446,8 @@ public class SupabaseUserService {
     // ✅ Hàm tìm role "User"
     private UUID getDefaultRoleId() {
         try {
-            // Tạo UUID mặc định cho role "User" (có thể hardcode hoặc query từ DB)
-            // Thay thế bằng UUID thực tế của role "User" trong database của bạn
-            return UUID.fromString("550e8400-e29b-41d4-a716-446655440000"); // Example UUID
+            System.out.println("Querying for default 'User' role from database...");
             
-            /* Nếu muốn query từ DB, uncomment code dưới:
             Map<String, String> params = new HashMap<>();
             params.put("role", "eq.User");  // Tìm role có tên là "User"
             params.put("status", "eq.1");
@@ -459,15 +456,18 @@ public class SupabaseUserService {
             ResponseEntity<Role[]> response = get("role", params, Role[].class);
 
             if (response.getBody() != null && response.getBody().length > 0) {
-                return response.getBody()[0].getId();
+                UUID roleId = response.getBody()[0].getId();
+                System.out.println("Found default role 'User' with ID: " + roleId);
+                return roleId;
             }
 
-            throw new RuntimeException("Không tìm thấy role 'User' trong hệ thống");
-            */
+            System.err.println("ERROR: Role 'User' not found in database!");
+            throw new RuntimeException("Không tìm thấy role 'User' trong hệ thống. Vui lòng tạo role 'User' trong database.");
 
         } catch (Exception e) {
+            System.err.println("ERROR querying default role: " + e.getMessage());
             e.printStackTrace();
-            // Fallback to default UUID if error
+            throw new RuntimeException("Lỗi khi tìm role mặc định: " + e.getMessage());
             return UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         }
     }
