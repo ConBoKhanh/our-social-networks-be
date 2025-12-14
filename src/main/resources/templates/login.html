@@ -398,7 +398,7 @@
 
             const data = await response.json();
 
-            if (response.ok && data.success && data.accessToken) {
+            if (response.ok && (data.status === "success" || data.success) && data.accessToken) {
                 showAlert('✅ Đăng nhập thành công! Đang chuyển hướng...', 'success');
                 
                 // Redirect về FE callback với tokens

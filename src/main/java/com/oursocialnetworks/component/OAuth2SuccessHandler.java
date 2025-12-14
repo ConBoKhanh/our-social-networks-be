@@ -16,6 +16,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -27,8 +29,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtService jwtService;
     private final EmailService emailService;
 
-    @Value("${app.frontend.url}")
+    @Value("${app.frontend.url:}")
     private String frontendUrl;
+    
+    private static final String DEFAULT_FRONTEND_URL = "http://localhost:4200";
 
     @Override
     public void onAuthenticationSuccess(
@@ -37,6 +41,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             Authentication authentication
     ) throws IOException, ServletException {
 
+        System.out.println("========== OAuth2SuccessHandler START ==========");
+        
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
         // Lấy email từ OAuth2
@@ -45,39 +51,52 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String name = oAuth2User.getAttribute("name");
         Boolean emailVerified = oAuth2User.getAttribute("email_verified");
 
+        System.out.println("OAuth2 User Info: email=" + email + ", sub=" + sub + ", name=" + name);
+
         if (email == null) {
-            redirectToFrontendWithError(response, "Không thể lấy email từ Google");
+            System.err.println("ERROR: Email is null from OAuth2");
+            redirectToFrontendWithError(response, "Khong the lay email tu Google");
             return;
         }
 
         try {
             // Tìm hoặc tạo user trong database
+            System.out.println("Finding or creating user for email: " + email);
             SupabaseUserService.UserCreationResult result = userService.findOrCreateUser(email);
             User user = result.getUser();
             boolean isNewUser = result.isNewUser();
             String tempPassword = result.getTempPassword();
 
+            System.out.println("User result: isNewUser=" + isNewUser + ", userId=" + (user != null ? user.getId() : "null"));
+
             if (isNewUser) {
                 // USER MỚI - Gửi email password và redirect đến trang đổi mật khẩu
+                System.out.println("NEW USER - Sending temp password email and redirecting to change-password");
+                
                 if (tempPassword != null) {
-                    // Gửi email với mật khẩu tạm thời
-                    emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
+                    try {
+                        emailService.sendTempPasswordEmail(email, user.getUsername(), tempPassword);
+                        System.out.println("Temp password email sent successfully");
+                    } catch (Exception emailEx) {
+                        System.err.println("Failed to send temp password email: " + emailEx.getMessage());
+                        // Continue anyway - user can request password reset later
+                    }
                 }
                 
                 // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
                 updateOAuth2Info(user, sub, emailVerified);
                 
                 // Redirect đến trang đổi mật khẩu của BE với thông tin user
-                UriComponentsBuilder builder = UriComponentsBuilder
-                        .fromUriString("/change-password")
-                        .queryParam("email", email)
-                        .queryParam("isNewUser", "true")
-                        .queryParam("message", "Tài khoản mới đã được tạo! Vui lòng kiểm tra email để lấy mật khẩu tạm thời và đổi mật khẩu mới.");
+                String redirectUrl = "/change-password?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                        + "&isNewUser=true"
+                        + "&message=" + URLEncoder.encode("Tai khoan moi da duoc tao! Vui long kiem tra email de lay mat khau tam thoi.", StandardCharsets.UTF_8);
 
-                response.sendRedirect(builder.build().toUriString());
+                System.out.println("Redirecting NEW USER to: " + redirectUrl);
+                response.sendRedirect(redirectUrl);
                 
             } else {
-                // USER CŨ - Tạo token và redirect về dashboard
+                // USER CŨ - Tạo token và redirect về FE callback
+                System.out.println("EXISTING USER - Generating tokens and redirecting to frontend");
                 
                 // Update thông tin OAuth2 nếu cần
                 updateOAuth2Info(user, sub, emailVerified);
@@ -86,25 +105,31 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 String accessToken = jwtService.generateToken(user);
                 String refreshToken = jwtService.generateRefreshToken(user);
 
-                // Redirect về FE với tokens (fallback nếu frontendUrl null)
-                String targetUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
-                    ? frontendUrl + "/auth/callback"
-                    : "/login"; // Fallback to login page with success message
+                // Xác định frontend URL
+                String effectiveFrontendUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
+                    ? frontendUrl 
+                    : DEFAULT_FRONTEND_URL;
                 
-                UriComponentsBuilder builder = UriComponentsBuilder
-                        .fromUriString(targetUrl)
-                        .queryParam("accessToken", accessToken)
-                        .queryParam("refreshToken", refreshToken)
-                        .queryParam("status", "success")
-                        .queryParam("message", "Đăng nhập thành công!")
-                        .queryParam("userStatus", user.getStatus()); // Để FE biết có cần đổi password không
+                String targetUrl = effectiveFrontendUrl + "/auth/callback";
+                
+                String redirectUrl = targetUrl 
+                        + "?accessToken=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
+                        + "&refreshToken=" + URLEncoder.encode(refreshToken, StandardCharsets.UTF_8)
+                        + "&status=success"
+                        + "&message=" + URLEncoder.encode("Dang nhap thanh cong!", StandardCharsets.UTF_8)
+                        + "&userStatus=" + user.getStatus();
 
-                response.sendRedirect(builder.build().toUriString());
+                System.out.println("Redirecting EXISTING USER to: " + targetUrl);
+                System.out.println("Full redirect URL length: " + redirectUrl.length());
+                response.sendRedirect(redirectUrl);
             }
 
+            System.out.println("========== OAuth2SuccessHandler END ==========");
+
         } catch (Exception e) {
+            System.err.println("========== OAuth2SuccessHandler ERROR ==========");
             e.printStackTrace();
-            redirectToFrontendWithError(response, "Đăng nhập thất bại: " + e.getMessage());
+            redirectToFrontendWithError(response, "Dang nhap that bai: " + e.getMessage());
         }
     }
 
@@ -137,12 +162,15 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
 
     private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
-        String errorUrl = UriComponentsBuilder
-                .fromUriString(frontendUrl + "/auth/callback")
-                .queryParam("status", "error")
-                .queryParam("message", errorMessage)
-                .build()
-                .toUriString();
+        String effectiveFrontendUrl = (frontendUrl != null && !frontendUrl.isEmpty()) 
+            ? frontendUrl 
+            : DEFAULT_FRONTEND_URL;
+            
+        String errorUrl = effectiveFrontendUrl + "/auth/callback"
+                + "?status=error"
+                + "&message=" + URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
+        
+        System.err.println("Redirecting with ERROR to: " + errorUrl);
         response.sendRedirect(errorUrl);
     }
 }
