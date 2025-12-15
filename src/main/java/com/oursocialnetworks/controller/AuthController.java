@@ -280,7 +280,7 @@ public class AuthController {
                         .body(AuthResponse.error("Tài khoản này không cần đổi mật khẩu tạm thời"));
             }
 
-            // Update password and status
+            // Update password and status using PATCH instead of PUT
             Map<String, Object> updateData = new HashMap<>();
             updateData.put("password_login", newPassword);
             updateData.put("status", 1); // Change from temporary (2) to active (1)
@@ -289,7 +289,13 @@ public class AuthController {
             Map<String, String> updateParams = new HashMap<>();
             updateParams.put("id", "eq." + user.getId());
             
-            userService.put("user", updateParams, updateData, User[].class);
+            // Use PATCH instead of PUT to avoid pgrst_body issues
+            ResponseEntity<User[]> updateResponse = userService.patch("user", updateParams, updateData, User[].class);
+            
+            if (updateResponse.getBody() == null || updateResponse.getBody().length == 0) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(AuthResponse.error("Không thể cập nhật mật khẩu"));
+            }
 
             return ResponseEntity.ok(AuthResponse.success(
                 "Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.",

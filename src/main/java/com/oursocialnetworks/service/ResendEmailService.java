@@ -25,6 +25,9 @@ public class ResendEmailService {
     @Value("${resend.enabled:false}")
     private boolean resendEnabled;
 
+    @Value("${app.backend.url:https://our-social-networks-be.onrender.com}")
+    private String backendUrl;
+
     private static final String RESEND_API_URL = "https://api.resend.com/emails";
 
     public ResendEmailService(TemplateEngine templateEngine) {
@@ -49,20 +52,30 @@ public class ResendEmailService {
             context.setVariable("username", username);
             context.setVariable("email", toEmail);
             context.setVariable("tempPassword", tempPassword);
-            context.setVariable("changePasswordUrl", "https://conbokhanh.io.vn/change-password?email=" + toEmail);
+            context.setVariable("changePasswordUrl", backendUrl + "/change-password?email=" + toEmail);
 
             String htmlContent = templateEngine.process("email-temp-password", context);
 
-            // Gọi Resend API
+            // Gọi Resend API với cấu hình chống spam
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(resendApiKey);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("from", fromEmail);
+            // Sử dụng domain riêng thay vì onboarding@resend.dev để tránh spam
+            body.put("from", "ConBoKhanh <noreply@conbokhanh.io.vn>");
             body.put("to", toEmail);
-            body.put("subject", "🔐 Mật khẩu tạm thời - conbokhanh");
+            body.put("subject", "🔐 Mật khẩu tạm thời cho tài khoản ConBoKhanh của bạn");
             body.put("html", htmlContent);
+            
+            // Thêm reply_to để tăng độ tin cậy
+            body.put("reply_to", "support@conbokhanh.io.vn");
+            
+            // Thêm tags để tracking
+            Map<String, String> tags = new HashMap<>();
+            tags.put("category", "temp-password");
+            tags.put("environment", "production");
+            body.put("tags", tags);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 

@@ -132,7 +132,7 @@ public class OAuth2DebugController {
             context.setVariable("username", "John Doe");
             context.setVariable("email", "john.doe@example.com");
             context.setVariable("tempPassword", "ABC123XYZ");
-            context.setVariable("changePasswordUrl", "https://conbokhanh.io.vn/change-password?email=john.doe@example.com");
+            context.setVariable("changePasswordUrl", "https://our-social-networks-be.onrender.com/change-password?email=john.doe@example.com");
             
             return templateEngine.process("email-temp-password", context);
         } catch (Exception e) {

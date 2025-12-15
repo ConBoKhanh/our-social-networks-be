@@ -26,6 +26,9 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String emailUsername;
 
+    @Value("${app.backend.url:https://our-social-networks-be.onrender.com}")
+    private String backendUrl;
+
     @Autowired
     public EmailService(JavaMailSender mailSender, TemplateEngine templateEngine, ResendEmailService resendEmailService) {
         this.mailSender = mailSender;
@@ -85,7 +88,7 @@ public class EmailService {
             context.setVariable("username", username);
             context.setVariable("email", email);
             context.setVariable("tempPassword", tempPassword);
-            context.setVariable("changePasswordUrl", "https://conbokhanh.io.vn/change-password?email=" + email);
+            context.setVariable("changePasswordUrl", backendUrl + "/change-password?email=" + email);
             
             String htmlContent = templateEngine.process("email-temp-password", context);
             
