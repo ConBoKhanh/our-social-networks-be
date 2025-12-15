@@ -135,6 +135,84 @@ public class ResendEmailService {
     }
 
     /**
+     * Gửi email OTP
+     */
+    public boolean sendOtpEmail(String toEmail, String otp, String type) {
+        if (!isConfigured()) {
+            return false;
+        }
+
+        try {
+            System.out.println("📧 [Resend] Sending OTP email to: " + toEmail + " (type: " + type + ")");
+
+            String subject = type.equals("register") 
+                ? "🔐 Mã xác thực đăng ký tài khoản ConBoKhanh"
+                : "🔐 Mã xác thực đặt lại mật khẩu ConBoKhanh";
+            
+            String title = type.equals("register") 
+                ? "Xác thực đăng ký tài khoản"
+                : "Đặt lại mật khẩu";
+            
+            String message = type.equals("register")
+                ? "Bạn đang đăng ký tài khoản mới tại ConBoKhanh. Vui lòng nhập mã OTP bên dưới để xác thực email của bạn."
+                : "Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng nhập mã OTP bên dưới để tiếp tục.";
+
+            String htmlContent = buildOtpEmailHtml(otp, title, message);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(resendApiKey);
+
+            Map<String, Object> body = new HashMap<>();
+            String senderEmail = fromEmail != null && !fromEmail.trim().isEmpty() ? fromEmail : "onboarding@resend.dev";
+            body.put("from", "ConBoKhanh <" + senderEmail + ">");
+            body.put("to", toEmail);
+            body.put("subject", subject);
+            body.put("html", htmlContent);
+
+            Map<String, String> emailHeaders = new HashMap<>();
+            String uniqueId = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
+            emailHeaders.put("X-Entity-Ref-ID", uniqueId);
+            body.put("headers", emailHeaders);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.exchange(RESEND_API_URL, HttpMethod.POST, request, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                System.out.println("✅ [Resend] OTP email sent to: " + toEmail);
+                return true;
+            }
+            System.err.println("❌ [Resend] Failed: " + response.getBody());
+            return false;
+
+        } catch (Exception e) {
+            System.err.println("❌ [Resend] Error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String buildOtpEmailHtml(String otp, String title, String message) {
+        return "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body style='font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8f9fa; padding: 40px 20px;'>" +
+            "<div style='max-width: 500px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);'>" +
+            "<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;'>" +
+            "<h1 style='font-family: cursive; font-size: 36px; color: #fff; margin: 0;'>conbokhanh</h1>" +
+            "</div>" +
+            "<div style='padding: 40px 30px; text-align: center;'>" +
+            "<h2 style='color: #1a1a1a; margin-bottom: 16px;'>" + title + "</h2>" +
+            "<p style='color: #4a5568; margin-bottom: 32px; line-height: 1.6;'>" + message + "</p>" +
+            "<div style='background: #f7fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 24px; margin: 24px 0;'>" +
+            "<div style='font-size: 14px; color: #718096; margin-bottom: 8px;'>Mã OTP của bạn</div>" +
+            "<div style='font-size: 36px; font-weight: 700; color: #667eea; letter-spacing: 8px; font-family: monospace;'>" + otp + "</div>" +
+            "</div>" +
+            "<p style='color: #a0aec0; font-size: 13px;'>⏱️ Mã có hiệu lực trong 5 phút</p>" +
+            "<p style='color: #ed8936; font-size: 13px; margin-top: 20px;'>⚠️ Không chia sẻ mã này với bất kỳ ai!</p>" +
+            "</div>" +
+            "<div style='background: #2d3748; color: #a0aec0; padding: 20px; text-align: center; font-size: 12px;'>" +
+            "Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này." +
+            "</div></div></body></html>";
+    }
+
+    /**
      * Kiểm tra Resend đã được cấu hình chưa
      */
     public boolean isConfigured() {

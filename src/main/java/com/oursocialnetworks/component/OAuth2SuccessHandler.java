@@ -83,13 +83,26 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
             System.out.println("User result: isNewUser=" + isNewUser + ", userId=" + (user != null ? user.getId() : "null") + ", status=" + (user != null ? user.getStatus() : "null"));
 
-            // Kiểm tra status - null hoặc 2 đều cần đổi mật khẩu
+            // Update OAuth2 info và set status = 1 (active) cho Google login
+            updateOAuth2Info(user, sub, emailVerified);
+            
+            // Nếu là user mới hoặc status = 2, update status = 1 (active) vì đăng nhập bằng Google
             Integer userStatus = user.getStatus();
-            boolean needChangePassword = isNewUser || userStatus == null || userStatus == 2;
+            if (isNewUser || userStatus == null || userStatus == 2) {
+                System.out.println("🔄 Updating user status to ACTIVE (1) for Google OAuth2 login");
+                user.setStatus(1); // Set active
+                try {
+                    userService.updateUserById(user.getId(), user, User[].class);
+                    System.out.println("✅ User status updated to ACTIVE");
+                } catch (Exception e) {
+                    System.err.println("⚠️ Failed to update user status: " + e.getMessage());
+                }
+            }
             
-            System.out.println("Check: isNewUser=" + isNewUser + ", userStatus=" + userStatus + ", needChangePassword=" + needChangePassword);
+            // Google OAuth2 login → Luôn đăng nhập thành công, không cần đổi mật khẩu
+            System.out.println("Check: isNewUser=" + isNewUser + ", userStatus=" + userStatus + ", loginMethod=GOOGLE_OAUTH2");
             
-            if (needChangePassword) {
+            if (false) { // Disable change password flow for Google login
                 // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU
                 System.out.println("========== EMAIL SENDING LOGIC ==========");
                 System.out.println("NEW USER OR STATUS=2 USER - Redirect first, then send email in background");
@@ -155,12 +168,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 }
                 
             } else {
-                // USER CŨ - Tạo token và redirect về FE callback
-                System.out.println("EXISTING USER - Generating tokens and redirecting to frontend");
+                // GOOGLE OAUTH2 LOGIN - Tạo token và redirect về FE callback
+                System.out.println("GOOGLE OAUTH2 LOGIN - Generating tokens and redirecting to frontend");
                 System.out.println("Frontend URL from config: " + frontendUrl);
-                
-                // Update thông tin OAuth2 nếu cần
-                updateOAuth2Info(user, sub, emailVerified);
+                System.out.println("User status: " + user.getStatus() + ", isNewUser: " + isNewUser);
                 
                 // Tạo JWT tokens
                 String accessToken = jwtService.generateToken(user);
@@ -168,19 +179,24 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
                 String targetUrl = frontendUrl + "/auth/callback";
                 
+                String message = isNewUser 
+                    ? "Chao mung ban den voi ConBoKhanh!" 
+                    : "Dang nhap thanh cong!";
+                
                 String redirectUrl = targetUrl 
                         + "?accessToken=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
                         + "&refreshToken=" + URLEncoder.encode(refreshToken, StandardCharsets.UTF_8)
                         + "&status=success"
-                        + "&message=" + URLEncoder.encode("Dang nhap thanh cong!", StandardCharsets.UTF_8)
-                        + "&userStatus=" + user.getStatus();
+                        + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8)
+                        + "&userStatus=" + user.getStatus()
+                        + "&isNewUser=" + isNewUser;
 
-                System.out.println("Redirecting EXISTING USER to: " + targetUrl);
+                System.out.println("Redirecting to: " + targetUrl);
                 System.out.println("Full redirect URL length: " + redirectUrl.length());
-                System.out.println("Response committed before existing user redirect: " + response.isCommitted());
+                System.out.println("Response committed before redirect: " + response.isCommitted());
                 response.sendRedirect(redirectUrl);
                 response.flushBuffer(); // Ensure redirect is sent immediately
-                System.out.println("Existing user redirect sent and flushed!");
+                System.out.println("✅ Google OAuth2 login redirect sent successfully!");
             }
 
             System.out.println("========== OAuth2SuccessHandler END ==========");

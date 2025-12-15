@@ -398,14 +398,14 @@ public class SupabaseUserService {
             String username = email.split("@")[0] + "_" + System.currentTimeMillis();
             String tempPassword = generateRandomPassword();
 
-            // 4. Tạo user mới với status = 2 (cần đổi mật khẩu)
+            // 4. Tạo user mới với status = 1 (active) cho Google OAuth2
             Map<String, Object> newUser = new HashMap<>();
             newUser.put("email", email);
             newUser.put("gmail", email);
             newUser.put("username", username);
             newUser.put("username_login", username);
             newUser.put("password_login", tempPassword);
-            newUser.put("status", 2);  // ✅ Status = 2 (cần đổi mật khẩu)
+            newUser.put("status", 1);  // ✅ Status = 1 (active) - Google OAuth2 không cần đổi mật khẩu
             newUser.put("provider", "google");
             newUser.put("email_verified", true);
             newUser.put("createDate", LocalDate.now().toString());

@@ -50,6 +50,8 @@ public class SecurityConfig {
                         // ✅ Login Page & OAuth2 - Public
                         .requestMatchers(
                                 "/login",                    // Trang login HTML
+                                "/register",                 // Trang đăng ký HTML
+                                "/forgot-password",          // Trang quên mật khẩu HTML
                                 "/change-password",          // Trang đổi mật khẩu HTML
                                 "/processing",               // Trang loading khi tạo tài khoản
                                 "/oauth2/**",                // OAuth2 endpoints
@@ -57,6 +59,8 @@ public class SecurityConfig {
                                 "/auth/login",               // JWT login endpoint
                                 "/auth/login/basic",         // Username/password login endpoint
                                 "/auth/change-password-new-user", // Change password for new users (no auth)
+                                "/auth/register/**",         // Registration endpoints
+                                "/auth/forgot-password/**",  // Forgot password endpoints
                                 "/auth/callback",            // Auth callback endpoint
                                 "/auth/oauth2/**"            // Auth OAuth2 endpoints
                         ).permitAll()
