@@ -86,23 +86,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             // Update OAuth2 info và set status = 1 (active) cho Google login
             updateOAuth2Info(user, sub, emailVerified);
             
-            // Nếu là user mới hoặc status = 2, update status = 1 (active) vì đăng nhập bằng Google
+            // Lấy status hiện tại
             Integer userStatus = user.getStatus();
-            if (isNewUser || userStatus == null || userStatus == 2) {
-                System.out.println("🔄 Updating user status to ACTIVE (1) for Google OAuth2 login");
-                user.setStatus(1); // Set active
-                try {
-                    userService.updateUserById(user.getId(), user, User[].class);
-                    System.out.println("✅ User status updated to ACTIVE");
-                } catch (Exception e) {
-                    System.err.println("⚠️ Failed to update user status: " + e.getMessage());
-                }
-            }
             
-            // Google OAuth2 login → Luôn đăng nhập thành công, không cần đổi mật khẩu
+            // Kiểm tra xem có cần đổi mật khẩu không
             System.out.println("Check: isNewUser=" + isNewUser + ", userStatus=" + userStatus + ", loginMethod=GOOGLE_OAUTH2");
             
-            if (false) { // Disable change password flow for Google login
+            if (isNewUser || (userStatus != null && userStatus == 2)) { // User mới hoặc cần đổi mật khẩu
                 // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU
                 System.out.println("========== EMAIL SENDING LOGIC ==========");
                 System.out.println("NEW USER OR STATUS=2 USER - Redirect first, then send email in background");
@@ -111,7 +101,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 System.out.println("user.getPasswordLogin(): " + (user.getPasswordLogin() != null ? "EXISTS" : "NULL"));
                 System.out.println("==========================================");
                 
-                // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
+                // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu) cho user mới
+                // Chỉ update OAuth2 info, không thay đổi status
                 updateOAuth2Info(user, sub, emailVerified);
                 
                 // REDIRECT TRƯỚC - không chờ email (KHÔNG truyền password qua URL - bảo mật)
@@ -168,20 +159,29 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 }
                 
             } else {
-                // GOOGLE OAUTH2 LOGIN - Tạo token và redirect về FE callback
-                System.out.println("GOOGLE OAUTH2 LOGIN - Generating tokens and redirecting to frontend");
+                // USER CŨ ĐÃ ACTIVE - Đăng nhập thành công, không cần đổi mật khẩu
+                System.out.println("EXISTING ACTIVE USER - Generating tokens and redirecting to frontend");
                 System.out.println("Frontend URL from config: " + frontendUrl);
                 System.out.println("User status: " + user.getStatus() + ", isNewUser: " + isNewUser);
+                
+                // Update OAuth2 info và set status = 1 (active) 
+                user.setStatus(1); // Đảm bảo status = 1
+                updateOAuth2Info(user, sub, emailVerified);
+                
+                // Update user status
+                try {
+                    userService.updateUserById(user.getId(), user, User[].class);
+                    System.out.println("✅ User status updated to ACTIVE");
+                } catch (Exception e) {
+                    System.err.println("⚠️ Failed to update user status: " + e.getMessage());
+                }
                 
                 // Tạo JWT tokens
                 String accessToken = jwtService.generateToken(user);
                 String refreshToken = jwtService.generateRefreshToken(user);
 
                 String targetUrl = frontendUrl + "/auth/callback";
-                
-                String message = isNewUser 
-                    ? "Chao mung ban den voi ConBoKhanh!" 
-                    : "Dang nhap thanh cong!";
+                String message = "Đăng nhập thành công!";
                 
                 String redirectUrl = targetUrl 
                         + "?accessToken=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
@@ -189,14 +189,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                         + "&status=success"
                         + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8)
                         + "&userStatus=" + user.getStatus()
-                        + "&isNewUser=" + isNewUser;
+                        + "&isNewUser=false";
 
                 System.out.println("Redirecting to: " + targetUrl);
-                System.out.println("Full redirect URL length: " + redirectUrl.length());
-                System.out.println("Response committed before redirect: " + response.isCommitted());
                 response.sendRedirect(redirectUrl);
-                response.flushBuffer(); // Ensure redirect is sent immediately
-                System.out.println("✅ Google OAuth2 login redirect sent successfully!");
+                response.flushBuffer();
+                System.out.println("✅ Existing user login redirect sent successfully!");
             }
 
             System.out.println("========== OAuth2SuccessHandler END ==========");
@@ -236,7 +234,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             if (needUpdate) {
                 // Update user info in database
                 System.out.println("Updating OAuth2 info for user: " + user.getEmail());
-                // userService.updateUserById(user.getId(), user, User[].class);
+                userService.updateUserById(user.getId(), user, User[].class);
+                System.out.println("✅ OAuth2 info updated successfully");
             }
         } catch (Exception e) {
             System.err.println("Failed to update OAuth2 info: " + e.getMessage());
