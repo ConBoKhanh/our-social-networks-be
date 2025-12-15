@@ -95,6 +95,9 @@ public class SecurityConfig {
                         // ✅ Client API - Authenticated user (tạm thời không cần role)
                         .requestMatchers("/api/client/**").authenticated()
                         
+                        // ✅ Friends API - Authenticated user
+                        .requestMatchers("/api/friends/**").authenticated()
+                        
                         // ⚠️ Admin API - Admin role  
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         
