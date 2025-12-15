@@ -2,11 +2,11 @@ package com.oursocialnetworks.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import com.oursocialnetworks.service.EmailService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -94,6 +94,9 @@ public class OAuth2DebugController {
     @Autowired(required = false)
     private org.thymeleaf.TemplateEngine templateEngine;
 
+    @Autowired(required = false)
+    private EmailService emailService;
+
     @GetMapping("/email-config")
     public Map<String, Object> getEmailConfig() {
         Map<String, Object> config = new HashMap<>();
@@ -155,6 +158,41 @@ public class OAuth2DebugController {
             return templateEngine.process("email-new-account", context);
         } catch (Exception e) {
             return "<h1>Error generating email preview: " + e.getMessage() + "</h1>";
+        }
+    }
+
+    @PostMapping("/test-send-email")
+    public ResponseEntity<?> testSendEmail(@RequestBody Map<String, String> request) {
+        try {
+            String email = request.get("email");
+            String username = request.getOrDefault("username", "Test User");
+            String tempPassword = request.getOrDefault("tempPassword", "TEST123");
+            
+            if (email == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+            }
+            
+            if (emailService == null) {
+                return ResponseEntity.status(500).body(Map.of("error", "EmailService not available"));
+            }
+            
+            System.out.println("🧪 [TEST] Sending email to: " + email);
+            boolean sent = emailService.sendTempPasswordEmail(email, username, tempPassword);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", sent,
+                "message", sent ? "Email sent successfully" : "Email failed to send",
+                "email", email,
+                "username", username,
+                "timestamp", System.currentTimeMillis()
+            ));
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to send email",
+                "message", e.getMessage(),
+                "timestamp", System.currentTimeMillis()
+            ));
         }
     }
 }

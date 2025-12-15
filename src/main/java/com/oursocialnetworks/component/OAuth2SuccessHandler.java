@@ -116,26 +116,35 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     System.out.println("✅ Redirect sent successfully!");
                     
                     // GỬI EMAIL SAU KHI ĐÃ REDIRECT (trong background thread)
-                    if (tempPassword != null) {
+                    // Gửi email cho cả user mới và user cũ có status = 2
+                    if (tempPassword != null || (userStatus != null && userStatus == 2)) {
                         final String finalEmail = email;
                         final String finalUsername = user.getUsername();
-                        final String finalTempPassword = tempPassword;
+                        final String finalTempPassword = tempPassword != null ? tempPassword : user.getPasswordLogin();
                         
                         new Thread(() -> {
                             try {
                                 System.out.println("📧 [BACKGROUND] Sending temp password email after redirect...");
+                                System.out.println("📧 [BACKGROUND] isNewUser: " + isNewUser + ", userStatus: " + userStatus);
+                                System.out.println("📧 [BACKGROUND] tempPassword: " + (finalTempPassword != null ? "***" : "null"));
+                                
                                 boolean sent = emailService.sendTempPasswordEmail(finalEmail, finalUsername, finalTempPassword);
                                 if (!sent) {
                                     // Log password nếu email fail (để admin hỗ trợ)
                                     System.out.println("=== EMAIL FAILED - TEMP PASSWORD FOR ADMIN SUPPORT ===");
                                     System.out.println("Email: " + finalEmail);
                                     System.out.println("Temp Password: " + finalTempPassword);
+                                    System.out.println("isNewUser: " + isNewUser);
+                                    System.out.println("userStatus: " + userStatus);
                                     System.out.println("======================================================");
                                 }
                             } catch (Exception emailEx) {
                                 System.err.println("📧 [BACKGROUND] Failed to send email: " + emailEx.getMessage());
+                                emailEx.printStackTrace();
                             }
                         }).start();
+                    } else {
+                        System.out.println("📧 [SKIP] No email needed - tempPassword: " + (tempPassword != null) + ", userStatus: " + userStatus);
                     }
                 } else {
                     System.err.println("ERROR: Response already committed, cannot redirect!");

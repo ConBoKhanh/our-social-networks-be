@@ -64,7 +64,7 @@ public class EmailService {
 
     /**
      * Gửi email mật khẩu tạm thời cho user mới từ Google OAuth2
-     * Ưu tiên sử dụng Resend API, fallback sang SMTP nếu Resend không available
+     * Ưu tiên sử dụng Gmail SMTP, fallback sang Resend API nếu Gmail không available
      */
     public boolean sendTempPasswordEmail(String email, String username, String tempPassword) {
         try {
@@ -72,30 +72,40 @@ public class EmailService {
             
             // Ưu tiên sử dụng Resend API (works on Render)
             if (resendEmailService.isConfigured()) {
-                System.out.println("📧 Using Resend API...");
+                System.out.println("📧 Using Resend API (Render compatible)...");
                 boolean result = resendEmailService.sendTempPasswordEmail(email, username, tempPassword);
                 if (result) {
                     System.out.println("✅ Email sent via Resend API");
                     return true;
                 }
-                System.out.println("⚠️ Resend failed, trying SMTP fallback...");
+                System.out.println("⚠️ Resend failed, trying Gmail SMTP fallback...");
             }
             
-            // Fallback sang SMTP
-            String subject = "🔐 Mật khẩu tạm thời - conbokhanh";
+            // Fallback sang Gmail SMTP (chỉ hoạt động local, Render sẽ block)
+            if (emailEnabled && emailUsername != null && !emailUsername.trim().isEmpty()) {
+                System.out.println("📧 Using Gmail SMTP (may fail on Render)...");
+                
+                String subject = "🔐 Mật khẩu tạm thời cho tài khoản ConBoKhanh của bạn";
+                
+                Context context = new Context();
+                context.setVariable("username", username);
+                context.setVariable("email", email);
+                context.setVariable("tempPassword", tempPassword);
+                context.setVariable("changePasswordUrl", backendUrl + "/change-password?email=" + email);
+                
+                String htmlContent = templateEngine.process("email-temp-password", context);
+                
+                boolean result = sendHtmlEmailInternal(email, subject, htmlContent);
+                
+                if (result) {
+                    System.out.println("✅ Email sent via Gmail SMTP");
+                    return true;
+                }
+                System.out.println("❌ Gmail SMTP failed (expected on Render)");
+            }
             
-            Context context = new Context();
-            context.setVariable("username", username);
-            context.setVariable("email", email);
-            context.setVariable("tempPassword", tempPassword);
-            context.setVariable("changePasswordUrl", backendUrl + "/change-password?email=" + email);
-            
-            String htmlContent = templateEngine.process("email-temp-password", context);
-            
-            boolean result = sendHtmlEmailInternal(email, subject, htmlContent);
-            
-            System.out.println("📧 Email send result for " + email + ": " + (result ? "SUCCESS" : "FAILED"));
-            return result;
+            System.err.println("❌ No email service available or all failed");
+            return false;
             
         } catch (Exception e) {
             System.err.println("📧 Failed to send temp password email to " + email + ": " + e.getMessage());
@@ -104,18 +114,19 @@ public class EmailService {
     }
 
     /**
-     * Internal method để gửi HTML email
-     * Nếu SMTP fail (Render blocks), sẽ log password để user có thể sử dụng
+     * Internal method để gửi HTML email qua Gmail SMTP
      */
     private boolean sendHtmlEmailInternal(String toEmail, String subject, String htmlContent) {
         try {
             // Kiểm tra nếu email bị tắt hoặc chưa config
             if (!emailEnabled || emailUsername == null || emailUsername.trim().isEmpty()) {
                 System.out.println("=== EMAIL DISABLED - SKIPPING ===");
-                return true;
+                return false;
             }
 
-            System.out.println("📧 Attempting to send HTML email to: " + toEmail);
+            System.out.println("📧 [Gmail SMTP] Attempting to send email to: " + toEmail);
+            System.out.println("📧 [Gmail SMTP] From: " + fromEmail);
+            System.out.println("📧 [Gmail SMTP] Username: " + emailUsername);
             
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
@@ -125,16 +136,28 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
             
+            // Thêm headers để tránh spam
+            mimeMessage.setHeader("X-Mailer", "ConBoKhanh Social Network");
+            mimeMessage.setHeader("X-Priority", "3");
+            
             mailSender.send(mimeMessage);
             
-            System.out.println("✅ HTML Email sent successfully to: " + toEmail);
+            System.out.println("✅ [Gmail SMTP] Email sent successfully to: " + toEmail);
             return true;
             
+        } catch (org.springframework.mail.MailAuthenticationException e) {
+            System.err.println("❌ [Gmail SMTP] Authentication failed: " + e.getMessage());
+            System.err.println("💡 Kiểm tra lại Gmail và App Password");
+            System.err.println("💡 Đảm bảo đã bật 2-Step Verification và tạo App Password");
+            return false;
+        } catch (org.springframework.mail.MailSendException e) {
+            System.err.println("❌ [Gmail SMTP] Send failed: " + e.getMessage());
+            System.err.println("💡 Kiểm tra kết nối internet và cấu hình SMTP");
+            return false;
         } catch (Exception e) {
-            // SMTP failed - likely Render.com blocking ports
-            System.err.println("❌ SMTP Failed (Render blocks SMTP ports): " + e.getMessage());
-            System.err.println("💡 Solution: Use SendGrid/Mailgun API instead of SMTP");
-            System.err.println("📋 Email was NOT sent to: " + toEmail);
+            System.err.println("❌ [Gmail SMTP] Unexpected error: " + e.getMessage());
+            System.err.println("💡 Chi tiết lỗi: " + e.getClass().getSimpleName());
+            e.printStackTrace();
             return false;
         }
     }
