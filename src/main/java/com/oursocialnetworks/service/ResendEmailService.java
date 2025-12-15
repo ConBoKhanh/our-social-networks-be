@@ -9,6 +9,7 @@ import org.thymeleaf.context.Context;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class ResendEmailService {
@@ -76,6 +77,15 @@ public class ResendEmailService {
             tags.put("category", "temp-password");
             tags.put("environment", "production");
             body.put("tags", tags);
+
+            // Thêm unique headers để tránh duplicate detection
+            Map<String, String> emailHeaders = new HashMap<>();
+            String uniqueId = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
+            emailHeaders.put("X-Entity-Ref-ID", uniqueId);
+            emailHeaders.put("X-Request-ID", uniqueId);
+            body.put("headers", emailHeaders);
+            
+            System.out.println("📧 [Resend] Unique ID: " + uniqueId);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
