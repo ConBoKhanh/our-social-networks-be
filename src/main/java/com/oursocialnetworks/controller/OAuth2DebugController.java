@@ -97,6 +97,9 @@ public class OAuth2DebugController {
     @Autowired(required = false)
     private EmailService emailService;
 
+    @Autowired(required = false)
+    private com.oursocialnetworks.service.ResendEmailService resendEmailService;
+
     @GetMapping("/email-config")
     public Map<String, Object> getEmailConfig() {
         Map<String, Object> config = new HashMap<>();
@@ -192,6 +195,63 @@ public class OAuth2DebugController {
                 "error", "Failed to send email",
                 "message", e.getMessage(),
                 "timestamp", System.currentTimeMillis()
+            ));
+        }
+    }
+
+    @GetMapping("/resend-config")
+    public Map<String, Object> getResendConfig() {
+        Map<String, Object> config = new HashMap<>();
+        
+        if (resendEmailService == null) {
+            config.put("error", "ResendEmailService not available");
+            return config;
+        }
+        
+        boolean isConfigured = resendEmailService.isConfigured();
+        config.put("isConfigured", isConfigured);
+        config.put("status", isConfigured ? "ready" : "not configured");
+        
+        return config;
+    }
+
+    @PostMapping("/force-send-email")
+    public ResponseEntity<?> forceSendEmail(@RequestBody Map<String, String> request) {
+        try {
+            String email = request.get("email");
+            if (email == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+            }
+
+            System.out.println("🔥 [FORCE] Force sending email to: " + email);
+            
+            // Test cả 2 service
+            Map<String, Object> result = new HashMap<>();
+            
+            // Test Resend
+            if (resendEmailService != null) {
+                boolean resendConfigured = resendEmailService.isConfigured();
+                result.put("resendConfigured", resendConfigured);
+                
+                if (resendConfigured) {
+                    boolean resendSent = resendEmailService.sendTempPasswordEmail(email, "Force Test", "FORCE123");
+                    result.put("resendSent", resendSent);
+                }
+            }
+            
+            // Test EmailService
+            if (emailService != null) {
+                boolean emailSent = emailService.sendTempPasswordEmail(email, "Force Test", "FORCE123");
+                result.put("emailServiceSent", emailSent);
+            }
+            
+            result.put("timestamp", System.currentTimeMillis());
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Force send failed",
+                "message", e.getMessage()
             ));
         }
     }

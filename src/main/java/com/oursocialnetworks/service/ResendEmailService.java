@@ -36,6 +36,18 @@ public class ResendEmailService {
         this.restTemplate = new RestTemplate();
     }
 
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        System.out.println("========== RESEND EMAIL SERVICE INIT ==========");
+        System.out.println("resendEnabled: " + resendEnabled);
+        System.out.println("resendApiKey exists: " + (resendApiKey != null && !resendApiKey.trim().isEmpty()));
+        System.out.println("resendApiKey length: " + (resendApiKey != null ? resendApiKey.length() : 0));
+        System.out.println("fromEmail: " + fromEmail);
+        System.out.println("backendUrl: " + backendUrl);
+        System.out.println("Service ready: " + isConfigured());
+        System.out.println("================================================");
+    }
+
     /**
      * Gửi email mật khẩu tạm thời qua Resend API
      */
@@ -63,14 +75,23 @@ public class ResendEmailService {
             headers.setBearerAuth(resendApiKey);
 
             Map<String, Object> body = new HashMap<>();
-            // Sử dụng domain riêng thay vì onboarding@resend.dev để tránh spam
-            body.put("from", "ConBoKhanh <noreply@conbokhanh.io.vn>");
+            // Sử dụng domain từ config, fallback sang onboarding@resend.dev nếu domain chưa verify
+            String senderEmail = fromEmail;
+            if (senderEmail == null || senderEmail.trim().isEmpty()) {
+                senderEmail = "onboarding@resend.dev";
+            }
+            
+            // Format sender với tên hiển thị
+            String fromAddress = senderEmail.contains("resend.dev") 
+                ? "ConBoKhanh <" + senderEmail + ">"
+                : "ConBoKhanh <" + senderEmail + ">";
+            
+            body.put("from", fromAddress);
             body.put("to", toEmail);
             body.put("subject", "🔐 Mật khẩu tạm thời cho tài khoản ConBoKhanh của bạn");
             body.put("html", htmlContent);
             
-            // Thêm reply_to để tăng độ tin cậy
-            body.put("reply_to", "support@conbokhanh.io.vn");
+            System.out.println("📧 [Resend] From: " + fromAddress);
             
             // Thêm tags để tracking
             Map<String, String> tags = new HashMap<>();
@@ -117,6 +138,10 @@ public class ResendEmailService {
      * Kiểm tra Resend đã được cấu hình chưa
      */
     public boolean isConfigured() {
-        return resendEnabled && resendApiKey != null && !resendApiKey.trim().isEmpty();
+        boolean configured = resendEnabled && resendApiKey != null && !resendApiKey.trim().isEmpty();
+        if (!configured) {
+            System.out.println("⚠️ [Resend] NOT configured - resendEnabled: " + resendEnabled + ", apiKey exists: " + (resendApiKey != null && !resendApiKey.trim().isEmpty()));
+        }
+        return configured;
     }
 }

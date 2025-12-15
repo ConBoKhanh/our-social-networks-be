@@ -91,8 +91,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             
             if (needChangePassword) {
                 // USER MỚI HOẶC USER CẦN ĐỔI MẬT KHẨU
+                System.out.println("========== EMAIL SENDING LOGIC ==========");
                 System.out.println("NEW USER OR STATUS=2 USER - Redirect first, then send email in background");
                 System.out.println("User status: " + userStatus + ", isNewUser: " + isNewUser);
+                System.out.println("tempPassword: " + (tempPassword != null ? "EXISTS" : "NULL"));
+                System.out.println("user.getPasswordLogin(): " + (user.getPasswordLogin() != null ? "EXISTS" : "NULL"));
+                System.out.println("==========================================");
                 
                 // Update thông tin OAuth2 nhưng giữ status = 2 (cần đổi mật khẩu)
                 updateOAuth2Info(user, sub, emailVerified);
