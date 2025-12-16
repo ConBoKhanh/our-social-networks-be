@@ -88,16 +88,19 @@ public class ResendEmailService {
             
             body.put("from", fromAddress);
             body.put("to", toEmail);
-            body.put("subject", "🔐 Mật khẩu tạm thời cho tài khoản ConBoKhanh của bạn");
+            body.put("subject", "Chào mừng bạn đến với ConBoKhanh! 🎉");
             body.put("html", htmlContent);
             
             System.out.println("📧 [Resend] From: " + fromAddress);
             
             // Thêm tags để tracking
             Map<String, String> tags = new HashMap<>();
-            tags.put("category", "temp-password");
+            tags.put("category", "welcome");
             tags.put("environment", "production");
             body.put("tags", tags);
+            
+            // Thêm reply-to để tránh spam
+            body.put("reply_to", "support@conbokhanh.io.vn");
 
             // Thêm unique headers để tránh duplicate detection
             Map<String, String> emailHeaders = new HashMap<>();
