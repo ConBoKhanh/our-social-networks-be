@@ -1,5 +1,6 @@
 package com.oursocialnetworks.controller;
 
+import com.oursocialnetworks.component.AuthUtils;
 import com.oursocialnetworks.entity.User;
 import com.oursocialnetworks.service.SupabaseUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -7,8 +8,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -19,32 +18,17 @@ import java.util.UUID;
 @RequestMapping("/api/client")
 @RequiredArgsConstructor
 @Tag(name = "Client", description = "API cho client app")
-@SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = "Bearer Authentication")
 public class ClientController {
 
     private final SupabaseUserService userService;
-
-    /**
-     * Lấy user ID từ JWT token
-     */
-    private UUID getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() != null) {
-            String principal = auth.getPrincipal().toString();
-            try {
-                return UUID.fromString(principal);
-            } catch (IllegalArgumentException e) {
-                System.err.println("Cannot parse UUID from principal: " + principal);
-            }
-        }
-        throw new RuntimeException("Không thể xác định user hiện tại!");
-    }
+    private final AuthUtils authUtils;
 
     @GetMapping("/profile")
     @Operation(summary = "Lấy thông tin profile user hiện tại")
     public ResponseEntity<?> getProfile() {
         try {
-            UUID currentUserId = getCurrentUserId();
+            UUID currentUserId = authUtils.getCurrentUserId();
             ResponseEntity<User[]> response = userService.getUserById(currentUserId.toString(), User[].class);
             
             if (response.getBody() != null && response.getBody().length > 0) {
@@ -57,9 +41,9 @@ public class ClientController {
                 return ResponseEntity.ok(result);
             }
             
-            return buildErrorResponse("Không tìm thấy thông tin user");
+            return authUtils.buildErrorResponse("Không tìm thấy thông tin user");
         } catch (Exception e) {
-            return buildErrorResponse(e.getMessage());
+            return authUtils.buildErrorResponse(e.getMessage());
         }
     }
 
@@ -70,7 +54,7 @@ public class ClientController {
     )
     public ResponseEntity<?> updateProfile(@RequestBody com.oursocialnetworks.dto.UpdateProfileRequest request) {
         try {
-            UUID currentUserId = getCurrentUserId();
+            UUID currentUserId = authUtils.getCurrentUserId();
             
             // Chỉ cho phép update một số field nhất định
             Map<String, Object> allowedUpdates = new HashMap<>();
@@ -88,7 +72,7 @@ public class ClientController {
             }
             
             if (allowedUpdates.isEmpty()) {
-                return buildErrorResponse("Không có thông tin nào để cập nhật");
+                return authUtils.buildErrorResponse("Không có thông tin nào để cập nhật");
             }
             
             ResponseEntity<User[]> response = userService.updateUserById(currentUserId, allowedUpdates, User[].class);
@@ -102,9 +86,9 @@ public class ClientController {
                 return ResponseEntity.ok(result);
             }
             
-            return buildErrorResponse("Không thể cập nhật profile");
+            return authUtils.buildErrorResponse("Không thể cập nhật profile");
         } catch (Exception e) {
-            return buildErrorResponse(e.getMessage());
+            return authUtils.buildErrorResponse(e.getMessage());
         }
     }
 
@@ -113,7 +97,7 @@ public class ClientController {
     public ResponseEntity<?> searchUsers(@RequestParam String q) {
         try {
             if (q == null || q.trim().isEmpty()) {
-                return buildErrorResponse("Từ khóa tìm kiếm không được để trống");
+                return authUtils.buildErrorResponse("Từ khóa tìm kiếm không được để trống");
             }
             
             ResponseEntity<User[]> response = userService.searchUserByUsername(q.trim(), User[].class);
@@ -125,7 +109,7 @@ public class ClientController {
             
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return buildErrorResponse(e.getMessage());
+            return authUtils.buildErrorResponse(e.getMessage());
         }
     }
 
@@ -143,9 +127,9 @@ public class ClientController {
                 return ResponseEntity.ok(result);
             }
             
-            return buildErrorResponse("Không tìm thấy user");
+            return authUtils.buildErrorResponse("Không tìm thấy user");
         } catch (Exception e) {
-            return buildErrorResponse(e.getMessage());
+            return authUtils.buildErrorResponse(e.getMessage());
         }
     }
 
@@ -153,7 +137,7 @@ public class ClientController {
     @Operation(summary = "Kiểm tra JWT token còn hiệu lực không")
     public ResponseEntity<?> checkAuth() {
         try {
-            UUID currentUserId = getCurrentUserId();
+            UUID currentUserId = authUtils.getCurrentUserId();
             ResponseEntity<User[]> response = userService.getUserById(currentUserId.toString(), User[].class);
             
             if (response.getBody() != null && response.getBody().length > 0) {
@@ -169,7 +153,7 @@ public class ClientController {
                 return ResponseEntity.ok(result);
             }
             
-            return buildErrorResponse("Token không hợp lệ");
+            return authUtils.buildErrorResponse("Token không hợp lệ");
         } catch (Exception e) {
             Map<String, Object> result = new HashMap<>();
             result.put("status", "error");
@@ -200,16 +184,9 @@ public class ClientController {
                 return ResponseEntity.ok(result);
             }
             
-            return buildErrorResponse("Không tìm thấy user");
+            return authUtils.buildErrorResponse("Không tìm thấy user");
         } catch (Exception e) {
-            return buildErrorResponse(e.getMessage());
+            return authUtils.buildErrorResponse(e.getMessage());
         }
-    }
-
-    private ResponseEntity<?> buildErrorResponse(String message) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "error");
-        response.put("message", message);
-        return ResponseEntity.badRequest().body(response);
     }
 }
