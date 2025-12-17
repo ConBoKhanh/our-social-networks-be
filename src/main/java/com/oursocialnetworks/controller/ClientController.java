@@ -64,24 +64,31 @@ public class ClientController {
     }
 
     @PutMapping("/profile")
-    @Operation(summary = "Cập nhật thông tin profile")
-    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> updates) {
+    @Operation(
+        summary = "Cập nhật thông tin profile",
+        description = "Cập nhật username, description, place_of_residence, image. Chỉ cập nhật các field được gửi lên."
+    )
+    public ResponseEntity<?> updateProfile(@RequestBody com.oursocialnetworks.dto.UpdateProfileRequest request) {
         try {
             UUID currentUserId = getCurrentUserId();
             
             // Chỉ cho phép update một số field nhất định
             Map<String, Object> allowedUpdates = new HashMap<>();
-            if (updates.containsKey("username")) {
-                allowedUpdates.put("username", updates.get("username"));
+            if (request.getUsername() != null) {
+                allowedUpdates.put("username", request.getUsername());
             }
-            if (updates.containsKey("description")) {
-                allowedUpdates.put("description", updates.get("description"));
+            if (request.getDescription() != null) {
+                allowedUpdates.put("description", request.getDescription());
             }
-            if (updates.containsKey("place_of_residence")) {
-                allowedUpdates.put("place_of_residence", updates.get("place_of_residence"));
+            if (request.getPlaceOfResidence() != null) {
+                allowedUpdates.put("place_of_residence", request.getPlaceOfResidence());
             }
-            if (updates.containsKey("image")) {
-                allowedUpdates.put("image", updates.get("image"));
+            if (request.getImage() != null) {
+                allowedUpdates.put("image", request.getImage());
+            }
+            
+            if (allowedUpdates.isEmpty()) {
+                return buildErrorResponse("Không có thông tin nào để cập nhật");
             }
             
             ResponseEntity<User[]> response = userService.updateUserById(currentUserId, allowedUpdates, User[].class);
@@ -127,6 +134,63 @@ public class ClientController {
     public ResponseEntity<?> getUserById(@PathVariable String id) {
         try {
             ResponseEntity<User[]> response = userService.getUserById(id, User[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("status", "success");
+                result.put("data", response.getBody()[0]);
+                
+                return ResponseEntity.ok(result);
+            }
+            
+            return buildErrorResponse("Không tìm thấy user");
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @GetMapping("/auth/check")
+    @Operation(summary = "Kiểm tra JWT token còn hiệu lực không")
+    public ResponseEntity<?> checkAuth() {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            ResponseEntity<User[]> response = userService.getUserById(currentUserId.toString(), User[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                User user = response.getBody()[0];
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("status", "success");
+                result.put("authenticated", true);
+                result.put("userId", user.getId());
+                result.put("username", user.getUsername());
+                result.put("email", user.getEmail());
+                
+                return ResponseEntity.ok(result);
+            }
+            
+            return buildErrorResponse("Token không hợp lệ");
+        } catch (Exception e) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("status", "error");
+            result.put("authenticated", false);
+            result.put("message", e.getMessage());
+            return ResponseEntity.status(401).body(result);
+        }
+    }
+
+    @GetMapping("/users/by-username/{username}")
+    @Operation(summary = "Lấy thông tin user theo username_login (như Instagram)")
+    public ResponseEntity<?> getUserByUsername(@PathVariable String username) {
+        try {
+            // Tìm user theo username_login
+            Map<String, String> params = new HashMap<>();
+            params.put("username_login", "eq." + username);
+            params.put("status", "eq.1");
+            params.put("select", "*,Role(*)");
+            params.put("limit", "1");
+            
+            ResponseEntity<User[]> response = userService.get("user", params, User[].class);
             
             if (response.getBody() != null && response.getBody().length > 0) {
                 Map<String, Object> result = new HashMap<>();

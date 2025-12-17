@@ -342,7 +342,7 @@ public class SupabaseUserService {
     }
 
     /**
-     * Login check
+     * Login check by username
      */
     public <T> ResponseEntity<T> loginUser(String username, String password, Class<T> responseType) {
         Map<String, String> params = new HashMap<>();
@@ -351,6 +351,19 @@ public class SupabaseUserService {
         params.put("status", "eq.1");
         params.put("select", "*,Role(*)");
         params.put("limit", "1"); // Only need 1 user
+        return get("user", params, responseType);
+    }
+
+    /**
+     * Login check by email
+     */
+    public <T> ResponseEntity<T> loginByEmail(String email, String password, Class<T> responseType) {
+        Map<String, String> params = new HashMap<>();
+        params.put("email", "eq." + email);
+        params.put("password_login", "eq." + password);
+        params.put("status", "eq.1");
+        params.put("select", "*,Role(*)");
+        params.put("limit", "1");
         return get("user", params, responseType);
     }
 

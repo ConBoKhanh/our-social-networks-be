@@ -43,16 +43,115 @@ public class FriendsController {
     }
 
     @GetMapping("/requests")
-    @Operation(summary = "Lấy danh sách lời mời kết bạn đang chờ")
-    public ResponseEntity<?> getPendingRequests() {
+    @Operation(summary = "Lấy danh sách lời mời follow đang chờ")
+    public ResponseEntity<?> getPendingRequests(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
         try {
             UUID currentUserId = getCurrentUserId();
-            FriendRequest[] requests = friendsService.getPendingRequests(currentUserId);
+            FriendRequest[] requests = friendsService.getPendingRequests(currentUserId, page, size);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("data", requests);
             response.put("count", requests.length);
+            response.put("page", page);
+            response.put("size", size);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @GetMapping("/followers")
+    @Operation(summary = "Lấy danh sách người đang follow mình (Followers)")
+    public ResponseEntity<?> getFollowers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            FriendRequest[] followers = friendsService.getFollowers(currentUserId, page, size);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", followers);
+            response.put("count", followers.length);
+            response.put("page", page);
+            response.put("size", size);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @GetMapping("/following")
+    @Operation(summary = "Lấy danh sách người mình đang follow (Following)")
+    public ResponseEntity<?> getFollowing(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            FriendRequest[] following = friendsService.getFollowing(currentUserId, page, size);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", following);
+            response.put("count", following.length);
+            response.put("page", page);
+            response.put("size", size);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @GetMapping("/followers/{userId}")
+    @Operation(summary = "Lấy danh sách followers của user khác")
+    public ResponseEntity<?> getUserFollowers(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        try {
+            UUID targetUserId = UUID.fromString(userId);
+            FriendRequest[] followers = friendsService.getFollowers(targetUserId, page, size);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", followers);
+            response.put("count", followers.length);
+            response.put("page", page);
+            response.put("size", size);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @GetMapping("/following/{userId}")
+    @Operation(summary = "Lấy danh sách following của user khác")
+    public ResponseEntity<?> getUserFollowing(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        try {
+            UUID targetUserId = UUID.fromString(userId);
+            FriendRequest[] following = friendsService.getFollowing(targetUserId, page, size);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", following);
+            response.put("count", following.length);
+            response.put("page", page);
+            response.put("size", size);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -61,18 +160,73 @@ public class FriendsController {
     }
 
 
-    @GetMapping("/list")
-    @Operation(summary = "Lấy danh sách bạn bè")
-    public ResponseEntity<?> getFriendsList() {
+
+
+    @GetMapping("/status/{userId}")
+    @Operation(
+        summary = "Kiểm tra trạng thái follow với user",
+        description = "Trả về:\n" +
+            "- none: Không có quan hệ\n" +
+            "- pending_sent: Đã gửi yêu cầu follow\n" +
+            "- pending_received: Nhận được yêu cầu follow\n" +
+            "- following: Đang follow họ\n" +
+            "- follower: Họ đang follow mình\n" +
+            "- mutual: Follow lẫn nhau"
+    )
+    public ResponseEntity<?> checkFollowStatus(@PathVariable String userId) {
         try {
             UUID currentUserId = getCurrentUserId();
-            FriendRequest[] friends = friendsService.getFriendsList(currentUserId);
-
+            UUID targetUserId = UUID.fromString(userId);
+            
+            String status = friendsService.checkFollowStatus(currentUserId, targetUserId);
+            
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("data", friends);
-            response.put("count", friends.length);
+            response.put("followStatus", status);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
 
+    @PostMapping("/follow/{userId}")
+    @Operation(summary = "Follow user (gửi yêu cầu follow)")
+    public ResponseEntity<?> followUser(@PathVariable String userId) {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            UUID targetUserId = UUID.fromString(userId);
+            
+            if (currentUserId.equals(targetUserId)) {
+                return buildErrorResponse("Không thể follow chính mình!");
+            }
+            
+            FriendRequest request = friendsService.sendFriendRequest(currentUserId, targetUserId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đã gửi yêu cầu follow!");
+            response.put("data", request);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/unfollow/{userId}")
+    @Operation(summary = "Unfollow user")
+    public ResponseEntity<?> unfollowUser(@PathVariable String userId) {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            UUID targetUserId = UUID.fromString(userId);
+            
+            boolean success = friendsService.unfollowUser(currentUserId, targetUserId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", success ? "Đã unfollow!" : "Không tìm thấy quan hệ follow");
+            
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return buildErrorResponse(e.getMessage());
@@ -80,11 +234,14 @@ public class FriendsController {
     }
 
     @PostMapping("/request")
-    @Operation(summary = "Gửi lời mời kết bạn")
-    public ResponseEntity<?> sendFriendRequest(@RequestBody Map<String, String> body) {
+    @Operation(
+        summary = "Gửi lời mời follow (deprecated - dùng POST /follow/{userId})",
+        description = "API cũ, khuyến nghị dùng POST /api/friends/follow/{userId}"
+    )
+    public ResponseEntity<?> sendFriendRequest(@RequestBody com.oursocialnetworks.dto.FollowRequest request) {
         try {
             UUID currentUserId = getCurrentUserId();
-            String friendIdStr = body.get("friendId");
+            String friendIdStr = request.getFriendId();
 
             if (friendIdStr == null || friendIdStr.isEmpty()) {
                 return buildErrorResponse("friendId là bắt buộc!");
@@ -98,15 +255,15 @@ public class FriendsController {
             }
 
             if (currentUserId.equals(friendId)) {
-                return buildErrorResponse("Không thể gửi lời mời kết bạn cho chính mình!");
+                return buildErrorResponse("Không thể follow chính mình!");
             }
 
-            FriendRequest request = friendsService.sendFriendRequest(currentUserId, friendId);
+            FriendRequest friendRequest = friendsService.sendFriendRequest(currentUserId, friendId);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Đã gửi lời mời kết bạn!");
-            response.put("data", request);
+            response.put("message", "Đã gửi yêu cầu follow!");
+            response.put("data", friendRequest);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

@@ -45,15 +45,18 @@ public class FriendsService {
 
 
     /**
-     * Lấy danh sách lời mời kết bạn đang chờ (Pending)
+     * Lấy danh sách lời mời follow đang chờ (Pending)
      * Người nhận = currentUserId
      */
-    public FriendRequest[] getPendingRequests(UUID currentUserId) {
+    public FriendRequest[] getPendingRequests(UUID currentUserId, int page, int size) {
         try {
             Map<String, String> params = new HashMap<>();
             params.put("friend_id", "eq." + currentUserId.toString());
             params.put("status_fr", "eq.Pending");
             params.put("status", "eq.1");
+            params.put("order", "id.desc");
+            params.put("limit", String.valueOf(size));
+            params.put("offset", String.valueOf(page * size));
 
             String url = buildUrl(params);
             HttpEntity<?> entity = new HttpEntity<>(buildHeaders());
@@ -61,6 +64,7 @@ public class FriendsService {
             System.out.println("========== GET PENDING REQUESTS ==========");
             System.out.println("URL: " + url);
             System.out.println("Current User ID: " + currentUserId);
+            System.out.println("Page: " + page + ", Size: " + size);
 
             ResponseEntity<FriendRequest[]> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, FriendRequest[].class);
@@ -75,22 +79,21 @@ public class FriendsService {
     }
 
     /**
-     * Lấy danh sách bạn bè (status_fr = Done)
-     * User có thể là id_user hoặc friend_id
+     * Lấy danh sách người đang follow mình (Followers)
+     * friend_id = currentUserId AND status_fr = Done
      */
-    public FriendRequest[] getFriendsList(UUID currentUserId) {
+    public FriendRequest[] getFollowers(UUID currentUserId, int page, int size) {
         try {
-            // Query: (id_user = currentUser OR friend_id = currentUser) AND status_fr = Done
             Map<String, String> params = new HashMap<>();
-            params.put("or", "(id_user.eq." + currentUserId + ",friend_id.eq." + currentUserId + ")");
+            params.put("friend_id", "eq." + currentUserId.toString());
             params.put("status_fr", "eq.Done");
             params.put("status", "eq.1");
+            params.put("order", "id.desc");
+            params.put("limit", String.valueOf(size));
+            params.put("offset", String.valueOf(page * size));
 
             String url = buildUrl(params);
             HttpEntity<?> entity = new HttpEntity<>(buildHeaders());
-
-            System.out.println("========== GET FRIENDS LIST ==========");
-            System.out.println("URL: " + url);
 
             ResponseEntity<FriendRequest[]> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, FriendRequest[].class);
@@ -102,6 +105,36 @@ public class FriendsService {
             throw ex;
         }
     }
+
+    /**
+     * Lấy danh sách người mình đang follow (Following)
+     * id_user = currentUserId AND status_fr = Done
+     */
+    public FriendRequest[] getFollowing(UUID currentUserId, int page, int size) {
+        try {
+            Map<String, String> params = new HashMap<>();
+            params.put("id_user", "eq." + currentUserId.toString());
+            params.put("status_fr", "eq.Done");
+            params.put("status", "eq.1");
+            params.put("order", "id.desc");
+            params.put("limit", String.valueOf(size));
+            params.put("offset", String.valueOf(page * size));
+
+            String url = buildUrl(params);
+            HttpEntity<?> entity = new HttpEntity<>(buildHeaders());
+
+            ResponseEntity<FriendRequest[]> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, FriendRequest[].class);
+
+            return response.getBody() != null ? response.getBody() : new FriendRequest[0];
+
+        } catch (RestClientResponseException ex) {
+            System.err.println("[Friends GET error] " + ex.getResponseBodyAsString());
+            throw ex;
+        }
+    }
+
+
 
     /**
      * Gửi lời mời kết bạn
@@ -224,7 +257,111 @@ public class FriendsService {
     }
 
     /**
-     * Hủy kết bạn
+     * Kiểm tra trạng thái follow giữa 2 user
+     * Returns: 
+     * - "none": Không có record trong DB
+     * - "pending_sent": Tôi gửi yêu cầu (id_user=me, friend_id=them, status_fr=Pending)
+     * - "pending_received": Tôi nhận yêu cầu (id_user=them, friend_id=me, status_fr=Pending)
+     * - "following": Tôi follow họ (id_user=me, friend_id=them, status_fr=Done)
+     * - "follower": Họ follow tôi (id_user=them, friend_id=me, status_fr=Done)
+     * - "mutual": Cả 2 follow nhau (2 records Done)
+     */
+    public String checkFollowStatus(UUID currentUserId, UUID targetUserId) {
+        try {
+            // Check: Tôi -> Họ (id_user=me, friend_id=them)
+            Map<String, String> params1 = new HashMap<>();
+            params1.put("id_user", "eq." + currentUserId);
+            params1.put("friend_id", "eq." + targetUserId);
+            params1.put("status", "eq.1");
+            
+            String url1 = buildUrl(params1);
+            HttpEntity<?> entity = new HttpEntity<>(buildHeaders());
+            ResponseEntity<FriendRequest[]> response1 = restTemplate.exchange(
+                    url1, HttpMethod.GET, entity, FriendRequest[].class);
+            
+            // Check: Họ -> Tôi (id_user=them, friend_id=me)
+            Map<String, String> params2 = new HashMap<>();
+            params2.put("id_user", "eq." + targetUserId);
+            params2.put("friend_id", "eq." + currentUserId);
+            params2.put("status", "eq.1");
+            
+            String url2 = buildUrl(params2);
+            ResponseEntity<FriendRequest[]> response2 = restTemplate.exchange(
+                    url2, HttpMethod.GET, entity, FriendRequest[].class);
+            
+            FriendRequest meToThem = (response1.getBody() != null && response1.getBody().length > 0) 
+                ? response1.getBody()[0] : null;
+            FriendRequest themToMe = (response2.getBody() != null && response2.getBody().length > 0) 
+                ? response2.getBody()[0] : null;
+            
+            // Cả 2 đều Done = mutual
+            if (meToThem != null && "Done".equals(meToThem.getStatusFr()) &&
+                themToMe != null && "Done".equals(themToMe.getStatusFr())) {
+                return "mutual";
+            }
+            
+            // Tôi -> Họ
+            if (meToThem != null) {
+                return "Pending".equals(meToThem.getStatusFr()) ? "pending_sent" : "following";
+            }
+            
+            // Họ -> Tôi
+            if (themToMe != null) {
+                return "Pending".equals(themToMe.getStatusFr()) ? "pending_received" : "follower";
+            }
+            
+            // Không có record
+            return "none";
+            
+        } catch (Exception e) {
+            System.err.println("[Check follow status error] " + e.getMessage());
+            return "none";
+        }
+    }
+
+    /**
+     * Unfollow user
+     */
+    public boolean unfollowUser(UUID currentUserId, UUID targetUserId) {
+        try {
+            // Tìm record where id_user = current AND friend_id = target
+            Map<String, String> params = new HashMap<>();
+            params.put("id_user", "eq." + currentUserId);
+            params.put("friend_id", "eq." + targetUserId);
+            params.put("status", "eq.1");
+            
+            String url = buildUrl(params);
+            HttpEntity<?> entity = new HttpEntity<>(buildHeaders());
+            ResponseEntity<FriendRequest[]> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, FriendRequest[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                Long requestId = response.getBody()[0].getId();
+                
+                // Soft delete
+                Map<String, String> deleteParams = new HashMap<>();
+                deleteParams.put("id", "eq." + requestId);
+                String deleteUrl = buildUrl(deleteParams);
+                
+                Map<String, Object> body = new HashMap<>();
+                body.put("status", 0);
+                
+                HttpEntity<Map<String, Object>> deleteEntity = new HttpEntity<>(body, buildHeaders());
+                restTemplate.exchange(deleteUrl, HttpMethod.PATCH, deleteEntity, FriendRequest[].class);
+                
+                return true;
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            System.err.println("[Unfollow error] " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Hủy kết bạn (deprecated)
      */
     public boolean unfriend(Long requestId, UUID currentUserId) {
         try {

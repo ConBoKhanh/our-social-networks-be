@@ -26,6 +26,7 @@ public class User {
     private String usernameLogin;
 
     @JsonProperty("password_login")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordLogin;
 
     private String image;

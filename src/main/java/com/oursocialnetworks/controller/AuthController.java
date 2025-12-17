@@ -156,16 +156,22 @@ public class AuthController {
     @PostMapping("/login/basic")
     public ResponseEntity<AuthResponse> loginWithCredentials(@RequestBody BasicLoginRequest req) {
         try {
-            ResponseEntity<User[]> res = userService.loginUser(
-                    req.getUsernameLogin(),
-                    req.getPasswordLogin(),
-                    User[].class
-            );
-
+            String loginIdentifier = req.getUsernameLogin();
+            String password = req.getPasswordLogin();
+            
+            // Thử login bằng username_login trước
+            ResponseEntity<User[]> res = userService.loginUser(loginIdentifier, password, User[].class);
             User[] users = res.getBody();
+            
+            // Nếu không tìm thấy, thử login bằng email
+            if (users == null || users.length == 0) {
+                res = userService.loginByEmail(loginIdentifier, password, User[].class);
+                users = res.getBody();
+            }
+
             if (users == null || users.length == 0) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(AuthResponse.error("Tên đăng nhập hoặc mật khẩu không đúng"));
+                        .body(AuthResponse.error("Email/Username hoặc mật khẩu không đúng"));
             }
 
             User user = users[0];
