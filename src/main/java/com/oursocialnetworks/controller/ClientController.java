@@ -2,170 +2,150 @@ package com.oursocialnetworks.controller;
 
 import com.oursocialnetworks.entity.User;
 import com.oursocialnetworks.service.SupabaseUserService;
-import com.oursocialnetworks.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/client")
 @RequiredArgsConstructor
-@Tag(name = "Client API", description = "APIs for regular users (User role)")
-@SecurityRequirement(name = "Bearer Authentication")
+@Tag(name = "Client", description = "API cho client app")
+@SecurityRequirement(name = "bearerAuth")
 public class ClientController {
 
-    private final SupabaseUserService supabaseService;
+    private final SupabaseUserService userService;
 
-    @Operation(
-            summary = "Get current user profile",
-            description = "Get current user information from JWT token - requires User role",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @GetMapping(value = "/profile", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<User>> getCurrentUser() {
-        try {
-            // Lấy user ID từ JWT token
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
-                ApiResponse<User> apiResponse = ApiResponse.error(
-                    "Không có quyền truy cập", 401);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
+    /**
+     * Lấy user ID từ JWT token
+     */
+    private UUID getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() != null) {
+            String principal = auth.getPrincipal().toString();
+            try {
+                return UUID.fromString(principal);
+            } catch (IllegalArgumentException e) {
+                System.err.println("Cannot parse UUID from principal: " + principal);
             }
-
-            String userId = auth.getPrincipal().toString();
-
-            // Lấy thông tin user từ database
-            ResponseEntity<User[]> response = supabaseService.getUserById(userId, User[].class);
-            User[] users = response.getBody();
-
-            if (users != null && users.length > 0) {
-                User user = users[0];
-                ApiResponse<User> apiResponse = ApiResponse.success(
-                    "Lấy thông tin người dùng thành công", user);
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
-            } else {
-                ApiResponse<User> apiResponse = ApiResponse.error(
-                    "Không tìm thấy người dùng", 404);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in getCurrentUser: " + e.getMessage());
-            e.printStackTrace();
-            ApiResponse<User> apiResponse = ApiResponse.error(
-                "Lỗi khi lấy thông tin người dùng: " + e.getMessage(), 500);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(apiResponse);
         }
+        throw new RuntimeException("Không thể xác định user hiện tại!");
     }
 
-    @Operation(
-            summary = "Update current user profile",
-            description = "Update current user information - requires User role",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @PutMapping(value = "/profile", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<User>> updateCurrentUser(@RequestBody UpdateProfileRequest request) {
+    @GetMapping("/profile")
+    @Operation(summary = "Lấy thông tin profile user hiện tại")
+    public ResponseEntity<?> getProfile() {
         try {
-            // Lấy user ID từ JWT token
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
-                ApiResponse<User> apiResponse = ApiResponse.error(
-                    "Không có quyền truy cập", 401);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
-            }
-
-            String userId = auth.getPrincipal().toString();
-
-            // Tạo update data (chỉ cho phép update một số field)
-            java.util.Map<String, Object> updateData = new java.util.HashMap<>();
-            if (request.getUsername() != null) {
-                updateData.put("username", request.getUsername());
-            }
-            if (request.getDescription() != null) {
-                updateData.put("description", request.getDescription());
-            }
-            if (request.getPlaceOfResidence() != null) {
-                updateData.put("place_of_residence", request.getPlaceOfResidence());
-            }
-            if (request.getDateOfBirth() != null) {
-                updateData.put("date-of-birth", request.getDateOfBirth().toString());
-            }
-            if (request.getImage() != null) {
-                updateData.put("image", request.getImage());
-            }
-            updateData.put("updateDate", java.time.LocalDate.now().toString());
-
-            // Update user
-            java.util.Map<String, String> params = new java.util.HashMap<>();
-            params.put("id", "eq." + userId);
+            UUID currentUserId = getCurrentUserId();
+            ResponseEntity<User[]> response = userService.getUserById(currentUserId.toString(), User[].class);
             
-            ResponseEntity<User[]> response = supabaseService.put("user", params, updateData, User[].class);
-            User[] updatedUsers = response.getBody();
-
-            if (updatedUsers != null && updatedUsers.length > 0) {
-                User updatedUser = updatedUsers[0];
-                ApiResponse<User> apiResponse = ApiResponse.success(
-                    "Cập nhật thông tin thành công", updatedUser);
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
-            } else {
-                ApiResponse<User> apiResponse = ApiResponse.error(
-                    "Không thể cập nhật thông tin", 400);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(apiResponse);
+            if (response.getBody() != null && response.getBody().length > 0) {
+                User user = response.getBody()[0];
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("status", "success");
+                result.put("data", user);
+                
+                return ResponseEntity.ok(result);
             }
+            
+            return buildErrorResponse("Không tìm thấy thông tin user");
         } catch (Exception e) {
-            System.err.println("ERROR in updateCurrentUser: " + e.getMessage());
-            e.printStackTrace();
-            ApiResponse<User> apiResponse = ApiResponse.error(
-                "Lỗi khi cập nhật thông tin: " + e.getMessage(), 500);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(apiResponse);
+            return buildErrorResponse(e.getMessage());
         }
     }
 
-    // DTO cho update profile request
-    public static class UpdateProfileRequest {
-        private String username;
-        private String description;
-        private String placeOfResidence;
-        private java.time.LocalDate dateOfBirth;
-        private String image;
+    @PutMapping("/profile")
+    @Operation(summary = "Cập nhật thông tin profile")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> updates) {
+        try {
+            UUID currentUserId = getCurrentUserId();
+            
+            // Chỉ cho phép update một số field nhất định
+            Map<String, Object> allowedUpdates = new HashMap<>();
+            if (updates.containsKey("username")) {
+                allowedUpdates.put("username", updates.get("username"));
+            }
+            if (updates.containsKey("description")) {
+                allowedUpdates.put("description", updates.get("description"));
+            }
+            if (updates.containsKey("place_of_residence")) {
+                allowedUpdates.put("place_of_residence", updates.get("place_of_residence"));
+            }
+            if (updates.containsKey("image")) {
+                allowedUpdates.put("image", updates.get("image"));
+            }
+            
+            ResponseEntity<User[]> response = userService.updateUserById(currentUserId, allowedUpdates, User[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("status", "success");
+                result.put("message", "Cập nhật thành công!");
+                result.put("data", response.getBody()[0]);
+                
+                return ResponseEntity.ok(result);
+            }
+            
+            return buildErrorResponse("Không thể cập nhật profile");
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
 
-        public UpdateProfileRequest() {}
+    @GetMapping("/users/search")
+    @Operation(summary = "Tìm kiếm user theo username")
+    public ResponseEntity<?> searchUsers(@RequestParam String q) {
+        try {
+            if (q == null || q.trim().isEmpty()) {
+                return buildErrorResponse("Từ khóa tìm kiếm không được để trống");
+            }
+            
+            ResponseEntity<User[]> response = userService.searchUserByUsername(q.trim(), User[].class);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("status", "success");
+            result.put("data", response.getBody() != null ? response.getBody() : new User[0]);
+            result.put("count", response.getBody() != null ? response.getBody().length : 0);
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
 
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
+    @GetMapping("/users/{id}")
+    @Operation(summary = "Lấy thông tin user theo ID")
+    public ResponseEntity<?> getUserById(@PathVariable String id) {
+        try {
+            ResponseEntity<User[]> response = userService.getUserById(id, User[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("status", "success");
+                result.put("data", response.getBody()[0]);
+                
+                return ResponseEntity.ok(result);
+            }
+            
+            return buildErrorResponse("Không tìm thấy user");
+        } catch (Exception e) {
+            return buildErrorResponse(e.getMessage());
+        }
+    }
 
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-
-        public String getPlaceOfResidence() { return placeOfResidence; }
-        public void setPlaceOfResidence(String placeOfResidence) { this.placeOfResidence = placeOfResidence; }
-
-        public java.time.LocalDate getDateOfBirth() { return dateOfBirth; }
-        public void setDateOfBirth(java.time.LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
-
-        public String getImage() { return image; }
-        public void setImage(String image) { this.image = image; }
+    private ResponseEntity<?> buildErrorResponse(String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "error");
+        response.put("message", message);
+        return ResponseEntity.badRequest().body(response);
     }
 }

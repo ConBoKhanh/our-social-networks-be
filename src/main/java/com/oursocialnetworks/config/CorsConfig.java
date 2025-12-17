@@ -24,14 +24,13 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Configure origins - use frontend URL from properties
-        if (frontendUrl.contains("localhost")) {
-            // Local development - allow localhost patterns
-            config.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "https://localhost:*"));
-        } else {
-            // Production - use specific frontend URL
-            config.setAllowedOrigins(Arrays.asList(frontendUrl));
-        }
+        // Configure origins - allow both production and development
+        config.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:*", 
+            "https://localhost:*",
+            frontendUrl,
+            "https://conbokhanh.io.vn"
+        ));
 
         // Configure headers
         if ("*".equals(allowedHeaders)) {

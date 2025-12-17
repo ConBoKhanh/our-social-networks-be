@@ -88,7 +88,7 @@ public class ResendEmailService {
             
             body.put("from", fromAddress);
             body.put("to", toEmail);
-            body.put("subject", "Chào mừng bạn đến với ConBoKhanh! 🎉");
+            body.put("subject", "Chào mừng bạn đến với ConBoKhanh");
             body.put("html", htmlContent);
             
             System.out.println("📧 [Resend] From: " + fromAddress);
@@ -99,14 +99,27 @@ public class ResendEmailService {
             tags.put("environment", "production");
             body.put("tags", tags);
             
-            // Thêm reply-to để tránh spam
+            // Thêm reply-to và text version để tránh spam
             body.put("reply_to", "support@conbokhanh.io.vn");
+            
+            // Thêm text version (quan trọng để tránh spam)
+            String textContent = "Chào mừng bạn đến với ConBoKhanh!\n\n" +
+                "Tài khoản của bạn đã được tạo thành công.\n" +
+                "Email: " + toEmail + "\n" +
+                "Mật khẩu đăng nhập: " + tempPassword + "\n\n" +
+                "Vui lòng truy cập: " + backendUrl + "/change-password?email=" + toEmail + "\n\n" +
+                "Nếu bạn không tạo tài khoản này, vui lòng bỏ qua email này.\n\n" +
+                "Trân trọng,\nĐội ngũ ConBoKhanh";
+            body.put("text", textContent);
 
-            // Thêm unique headers để tránh duplicate detection
+            // Thêm headers để tránh spam
             Map<String, String> emailHeaders = new HashMap<>();
             String uniqueId = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
             emailHeaders.put("X-Entity-Ref-ID", uniqueId);
             emailHeaders.put("X-Request-ID", uniqueId);
+            emailHeaders.put("List-Unsubscribe", "<mailto:unsubscribe@conbokhanh.io.vn>");
+            emailHeaders.put("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+            emailHeaders.put("X-Mailer", "ConBoKhanh-System");
             body.put("headers", emailHeaders);
             
             System.out.println("📧 [Resend] Unique ID: " + uniqueId);
