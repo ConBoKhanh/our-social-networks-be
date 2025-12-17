@@ -19,10 +19,15 @@ public class FriendsService {
 
     private final SupabaseConfig config;
     private final RestTemplate restTemplate;
-    private final SupabaseUserService userService;
 
     private HttpHeaders buildHeaders() {
         var d = config.getDomains().get("friends");
+        System.out.println("========== FRIENDS CONFIG ==========");
+        System.out.println("Friends URL: " + d.getUrl());
+        System.out.println("Friends Table: " + d.getTable());
+        System.out.println("Friends Key exists: " + (d.getKey() != null && !d.getKey().isEmpty()));
+        System.out.println("=====================================");
+        
         HttpHeaders headers = new HttpHeaders();
         headers.set("apikey", d.getKey());
         headers.set("Authorization", "Bearer " + d.getKey());
