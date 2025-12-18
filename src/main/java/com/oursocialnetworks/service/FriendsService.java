@@ -1,9 +1,7 @@
 package com.oursocialnetworks.service;
 
 import com.oursocialnetworks.config.SupabaseConfig;
-import com.oursocialnetworks.dto.FriendWithUserInfo;
 import com.oursocialnetworks.entity.FriendRequest;
-import com.oursocialnetworks.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -399,81 +397,6 @@ public class FriendsService {
             System.err.println("[Friends PATCH error] " + ex.getResponseBodyAsString());
             throw ex;
         }
-    }
-
-    // ========== ENRICHMENT METHODS ==========
-    
-    /**
-     * Enrich FriendRequest array với user details
-     * @param friendRequests Array of friend requests
-     * @param currentUserId ID của user hiện tại để xác định lấy thông tin của ai
-     * @param getFollowerInfo true = lấy info của id_user (người follow), false = lấy info của friend_id (người được follow)
-     */
-    public FriendWithUserInfo[] enrichWithUserInfo(FriendRequest[] friendRequests, UUID currentUserId, boolean getFollowerInfo) {
-        if (friendRequests == null || friendRequests.length == 0) {
-            return new FriendWithUserInfo[0];
-        }
-        
-        List<FriendWithUserInfo> result = new ArrayList<>();
-        
-        for (FriendRequest friendRequest : friendRequests) {
-            try {
-                // Xác định user ID cần lấy thông tin
-                UUID targetUserId;
-                if (getFollowerInfo) {
-                    // Lấy thông tin của người follow (id_user)
-                    targetUserId = friendRequest.getIdUser();
-                } else {
-                    // Lấy thông tin của người được follow (friend_id)
-                    targetUserId = friendRequest.getFriendId();
-                }
-                
-                // Lấy thông tin user từ Users table
-                ResponseEntity<User[]> userResponse = userService.getUserById(targetUserId.toString(), User[].class);
-                
-                if (userResponse.getBody() != null && userResponse.getBody().length > 0) {
-                    User user = userResponse.getBody()[0];
-                    result.add(new FriendWithUserInfo(friendRequest, user));
-                } else {
-                    // Nếu không tìm thấy user, vẫn thêm vào với userInfo = null
-                    result.add(new FriendWithUserInfo(friendRequest, null));
-                }
-                
-            } catch (Exception e) {
-                System.err.println("[Enrich user info error] " + e.getMessage());
-                // Nếu lỗi, vẫn thêm vào với userInfo = null
-                result.add(new FriendWithUserInfo(friendRequest, null));
-            }
-        }
-        
-        return result.toArray(new FriendWithUserInfo[0]);
-    }
-    
-    /**
-     * Lấy pending requests với user info
-     */
-    public FriendWithUserInfo[] getPendingRequestsWithUserInfo(UUID currentUserId, int page, int size) {
-        FriendRequest[] requests = getPendingRequests(currentUserId, page, size);
-        // Lấy thông tin của người gửi request (id_user)
-        return enrichWithUserInfo(requests, currentUserId, true);
-    }
-    
-    /**
-     * Lấy followers với user info
-     */
-    public FriendWithUserInfo[] getFollowersWithUserInfo(UUID currentUserId, int page, int size) {
-        FriendRequest[] followers = getFollowers(currentUserId, page, size);
-        // Lấy thông tin của người follow mình (id_user)
-        return enrichWithUserInfo(followers, currentUserId, true);
-    }
-    
-    /**
-     * Lấy following với user info
-     */
-    public FriendWithUserInfo[] getFollowingWithUserInfo(UUID currentUserId, int page, int size) {
-        FriendRequest[] following = getFollowing(currentUserId, page, size);
-        // Lấy thông tin của người mình follow (friend_id)
-        return enrichWithUserInfo(following, currentUserId, false);
     }
 
     // ========== HELPER METHODS ==========

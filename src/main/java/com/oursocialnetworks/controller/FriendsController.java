@@ -25,14 +25,14 @@ public class FriendsController {
     private final AuthUtils authUtils;
 
     @GetMapping("/requests")
-    @Operation(summary = "Lấy danh sách lời mời follow đang chờ (với thông tin user)")
+    @Operation(summary = "Lấy danh sách lời mời follow đang chờ")
     public ResponseEntity<?> getPendingRequests(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         try {
             UUID currentUserId = authUtils.getCurrentUserId();
-            var requests = friendsService.getPendingRequestsWithUserInfo(currentUserId, page, size);
+            FriendRequest[] requests = friendsService.getPendingRequests(currentUserId, page, size);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
@@ -48,14 +48,14 @@ public class FriendsController {
     }
 
     @GetMapping("/followers")
-    @Operation(summary = "Lấy danh sách người đang follow mình (Followers) với thông tin user")
+    @Operation(summary = "Lấy danh sách người đang follow mình (Followers)")
     public ResponseEntity<?> getFollowers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         try {
             UUID currentUserId = authUtils.getCurrentUserId();
-            var followers = friendsService.getFollowersWithUserInfo(currentUserId, page, size);
+            FriendRequest[] followers = friendsService.getFollowers(currentUserId, page, size);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
@@ -71,14 +71,14 @@ public class FriendsController {
     }
 
     @GetMapping("/following")
-    @Operation(summary = "Lấy danh sách người mình đang follow (Following) với thông tin user")
+    @Operation(summary = "Lấy danh sách người mình đang follow (Following)")
     public ResponseEntity<?> getFollowing(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         try {
             UUID currentUserId = authUtils.getCurrentUserId();
-            var following = friendsService.getFollowingWithUserInfo(currentUserId, page, size);
+            FriendRequest[] following = friendsService.getFollowing(currentUserId, page, size);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
