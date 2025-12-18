@@ -175,18 +175,41 @@ public class AuthController {
             }
 
             User user = users[0];
-            String accessToken = jwtService.generateToken(user);
-            String refreshToken = jwtService.generateRefreshToken(user);
-
-            String message = user.getStatus() == 2 
-                ? "Đăng nhập thành công! Vui lòng đổi mật khẩu để tiếp tục sử dụng."
-                : "Đăng nhập thành công!";
-
-            AuthResponse response = AuthResponse.success(
-                message, accessToken, refreshToken, user, false, null
-            );
-
-            return ResponseEntity.ok(response);
+            
+            // Check status và xử lý tương ứng
+            switch (user.getStatus()) {
+                case 0:
+                    // Tài khoản bị khóa
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(AuthResponse.error("Tài khoản đã bị khóa. Hãy liên lạc với Duy Con Bố Khánh để yêu cầu hỗ trợ."));
+                
+                case 2:
+                    // Cần đổi mật khẩu - trả redirectUrl để FE redirect đến màn đổi mật khẩu BE
+                    String email = user.getEmail() != null ? user.getEmail() : loginIdentifier;
+                    String changePasswordUrl = "/change-password?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8)
+                            + "&isNewUser=false"
+                            + "&message=" + java.net.URLEncoder.encode("Vui lòng đổi mật khẩu để tiếp tục sử dụng.", java.nio.charset.StandardCharsets.UTF_8);
+                    
+                    String accessToken2 = jwtService.generateToken(user);
+                    String refreshToken2 = jwtService.generateRefreshToken(user);
+                    AuthResponse response2 = AuthResponse.success(
+                        "Đăng nhập thành công! Vui lòng đổi mật khẩu để tiếp tục sử dụng.",
+                        accessToken2, refreshToken2, user, false, null
+                    );
+                    response2.setRedirectUrl(changePasswordUrl);
+                    return ResponseEntity.ok(response2);
+                
+                case 1:
+                default:
+                    // Tài khoản active - login bình thường
+                    String accessToken = jwtService.generateToken(user);
+                    String refreshToken = jwtService.generateRefreshToken(user);
+                    AuthResponse response = AuthResponse.success(
+                        "Đăng nhập thành công!",
+                        accessToken, refreshToken, user, false, null
+                    );
+                    return ResponseEntity.ok(response);
+            }
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(AuthResponse.error("Đăng nhập thất bại: " + e.getMessage()));

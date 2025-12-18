@@ -17,15 +17,16 @@ public class AuthResponse {
     private Boolean isNewUser;              // true nếu user mới được tạo
     private String tempPassword;            // Password tạm thời (chỉ cho user mới)
     private Boolean requirePasswordChange;  // true nếu user cần đổi mật khẩu (status = 2)
+    private String redirectUrl;             // URL redirect (cho status = 2 cần đổi mật khẩu)
     
     // Constructor cho success
     public static AuthResponse success(String message, String accessToken, String refreshToken, User user, Boolean isNewUser, String tempPassword) {
         Boolean requirePasswordChange = (user != null && user.getStatus() == 2);
-        return new AuthResponse("success", message, accessToken, refreshToken, user, isNewUser, tempPassword, requirePasswordChange);
+        return new AuthResponse("success", message, accessToken, refreshToken, user, isNewUser, tempPassword, requirePasswordChange, null);
     }
     
     // Constructor cho error
     public static AuthResponse error(String message) {
-        return new AuthResponse("error", message, null, null, null, false, null, false);
+        return new AuthResponse("error", message, null, null, null, false, null, false, null);
     }
 }

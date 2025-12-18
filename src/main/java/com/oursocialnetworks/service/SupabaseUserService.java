@@ -348,7 +348,7 @@ public class SupabaseUserService {
         Map<String, String> params = new HashMap<>();
         params.put("username_login", "eq." + username);
         params.put("password_login", "eq." + password);
-        params.put("status", "neq.0"); // Allow status != 0 (active and pending users)
+        // Không filter status ở đây - để controller check và trả message phù hợp
         params.put("select", "*,Role(*)");
         params.put("limit", "1"); // Only need 1 user
         return get("user", params, responseType);
@@ -361,7 +361,7 @@ public class SupabaseUserService {
         Map<String, String> params = new HashMap<>();
         params.put("email", "eq." + email);
         params.put("password_login", "eq." + password);
-        params.put("status", "neq.0"); // Allow status != 0 (active and pending users)
+        // Không filter status ở đây - để controller check và trả message phù hợp
         params.put("select", "*,Role(*)");
         params.put("limit", "1");
         return get("user", params, responseType);
